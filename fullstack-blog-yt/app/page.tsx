@@ -24,10 +24,16 @@ export default async function Home() {
           ブログ新規作成
         </Link>
         <Link
-          href={"/qr"}
+          href={"/delivery"}
           className="md:w-1/6 sm:w-2/4 text-center rounded-md p-2 bg-slate-300 font-semibold"
         >
-          QRコード読み取り
+          納品検品スキャン
+        </Link>
+        <Link
+          href={"/shipment"}
+          className="md:w-1/6 sm:w-2/4 text-center rounded-md p-2 bg-slate-300 font-semibold"
+        >
+          出庫検品スキャン
         </Link>
       </div>
 

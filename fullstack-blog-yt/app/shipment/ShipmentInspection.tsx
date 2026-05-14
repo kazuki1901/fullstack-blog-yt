@@ -8,7 +8,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import type { BarcodeDetectorInstance } from "../qr/barcode-detector";
+import type { BarcodeDetectorInstance } from "@/app/lib/barcode-detector";
 
 type CodeState = {
   text: string;
@@ -53,7 +53,7 @@ const subscribeNoop = () => () => {};
 const getSupportedClient = () => typeof window.BarcodeDetector === "function";
 const getSupportedServer = (): boolean | null => null;
 
-export default function MultiQrScanner() {
+export default function ShipmentInspection() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const detectorRef = useRef<BarcodeDetectorInstance | null>(null);
@@ -321,7 +321,7 @@ export default function MultiQrScanner() {
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-slate-50 text-slate-900">
       <header className="px-5 pt-6 pb-2">
-        <p className="text-[15px] text-slate-500">出庫検品 / 金沢営業所</p>
+        <p className="text-[15px] text-slate-500">出庫検品スキャン / 金沢営業所</p>
         <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-slate-900">
           山田 / #4 車
         </h1>

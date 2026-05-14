@@ -8,7 +8,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import type { BarcodeDetectorInstance } from "./barcode-detector";
+import type { BarcodeDetectorInstance } from "@/app/lib/barcode-detector";
 
 type ScanRecord = {
   text: string;
@@ -114,7 +114,7 @@ const subscribeNoop = () => () => {};
 const getSupportedClient = () => typeof window.BarcodeDetector === "function";
 const getSupportedServer = (): boolean | null => null;
 
-export default function Inspection() {
+export default function DeliveryInspection() {
   const [destination, setDestination] = useState<Destination | null>(null);
 
   if (destination === null) {
@@ -139,7 +139,7 @@ function DestinationPicker({
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-slate-50 text-slate-900">
       <header className="px-5 pt-6 pb-3">
-        <p className="text-[15px] text-slate-500">出庫検品 / 金沢営業所</p>
+        <p className="text-[15px] text-slate-500">納品検品スキャン / 金沢営業所</p>
         <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-slate-900">
           納品先を選択
         </h1>
@@ -494,7 +494,7 @@ function InspectionWorkflow({
         </button>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[12px] text-slate-500">
-            出庫検品 / 金沢営業所(単発)
+            納品検品スキャン / 金沢営業所
           </p>
           <h1 className="truncate text-[18px] font-bold tracking-tight text-slate-900">
             {destination.name}
