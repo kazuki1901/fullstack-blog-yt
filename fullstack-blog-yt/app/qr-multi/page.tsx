@@ -6,7 +6,7 @@ export const metadata = {
 
 export default function QrMultiPage() {
   return (
-    <main className="min-h-screen bg-[#091428] text-zinc-100">
+    <main className="min-h-screen bg-slate-50 text-slate-900">
       <MultiQrScanner />
     </main>
   );

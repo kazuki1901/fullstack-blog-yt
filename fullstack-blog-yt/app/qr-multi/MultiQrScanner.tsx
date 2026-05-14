@@ -338,33 +338,48 @@ export default function MultiQrScanner() {
     return m;
   }, [tentatives]);
 
-  const expectedConfirmedCount = useMemo(() => {
-    const expectedSet = new Set(EXPECTED_ITEMS.map((e) => e.code));
-    return confirmed.filter((c) => expectedSet.has(c.text)).length;
-  }, [confirmed]);
+  const expectedSet = useMemo(
+    () => new Set(EXPECTED_ITEMS.map((e) => e.code)),
+    [],
+  );
+
+  const expectedConfirmedCount = useMemo(
+    () => confirmed.filter((c) => expectedSet.has(c.text)).length,
+    [confirmed, expectedSet],
+  );
+
+  const unexpectedConfirmed = useMemo(
+    () => confirmed.filter((c) => !expectedSet.has(c.text)),
+    [confirmed, expectedSet],
+  );
+
+  const unexpectedTentatives = useMemo(
+    () => tentatives.filter((t) => !expectedSet.has(t.text)),
+    [tentatives, expectedSet],
+  );
 
   const confirmedCount = confirmed.length;
   const tentativeCount = tentatives.length;
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-[#091428]">
+    <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-slate-50 text-slate-900">
       <header className="px-5 pt-6 pb-2">
-        <p className="text-[15px] text-zinc-400">出庫検品 / 金沢営業所</p>
-        <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-white">
+        <p className="text-[15px] text-slate-500">出庫検品 / 金沢営業所</p>
+        <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-slate-900">
           山田 / #4 車
         </h1>
       </header>
 
       <nav className="px-5 pb-3">
-        <div className="grid grid-cols-2 gap-2 rounded-xl bg-[#0c1c34] p-1 ring-1 ring-blue-900/40">
+        <div className="grid grid-cols-2 gap-2 rounded-xl bg-white p-1 ring-1 ring-slate-200">
           <button
             type="button"
             onClick={() => setView("camera")}
             className={[
               "rounded-lg px-3 py-2 text-sm font-bold transition",
               view === "camera"
-                ? "bg-blue-500 text-white shadow"
-                : "text-zinc-300 hover:bg-blue-900/30",
+                ? "bg-blue-600 text-white shadow"
+                : "text-slate-600 hover:bg-slate-100",
             ].join(" ")}
           >
             カメラ
@@ -375,8 +390,8 @@ export default function MultiQrScanner() {
             className={[
               "flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition",
               view === "list"
-                ? "bg-blue-500 text-white shadow"
-                : "text-zinc-300 hover:bg-blue-900/30",
+                ? "bg-blue-600 text-white shadow"
+                : "text-slate-600 hover:bg-slate-100",
             ].join(" ")}
           >
             検品状況
@@ -384,8 +399,8 @@ export default function MultiQrScanner() {
               className={[
                 "rounded-md px-1.5 py-0.5 text-[11px] tabular-nums",
                 view === "list"
-                  ? "bg-white/20"
-                  : "bg-blue-500/20 text-blue-300",
+                  ? "bg-white/25"
+                  : "bg-blue-100 text-blue-700",
               ].join(" ")}
             >
               {expectedConfirmedCount}/{EXPECTED_ITEMS.length}
@@ -400,7 +415,7 @@ export default function MultiQrScanner() {
           view === "camera" ? "flex flex-1 flex-col" : "hidden",
         ].join(" ")}
       >
-        <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-black ring-1 ring-blue-900/40">
+        <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-slate-900 ring-1 ring-slate-300 shadow-sm">
           <video
             ref={videoRef}
             className="absolute inset-0 h-full w-full object-cover"
@@ -416,10 +431,10 @@ export default function MultiQrScanner() {
               {liveBoxes.map((b) => {
                 const color =
                   b.status === "confirmed"
-                    ? "#34d399"
+                    ? "#22c55e"
                     : b.status === "tentative"
-                      ? "#fbbf24"
-                      : "#60a5fa";
+                      ? "#f59e0b"
+                      : "#3b82f6";
                 return (
                   <g key={b.text}>
                     <rect
@@ -442,8 +457,8 @@ export default function MultiQrScanner() {
           )}
 
           {!scanning && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 text-center">
-              <p className="px-6 text-sm text-zinc-200">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-900/80 text-center">
+              <p className="px-6 text-sm text-slate-100">
                 「スキャン開始」を押すとカメラが起動します
               </p>
             </div>
@@ -460,7 +475,7 @@ export default function MultiQrScanner() {
               LIVE {liveCount}
             </span>
             <div className="flex gap-1.5">
-              <span className="rounded-md bg-blue-500/90 px-2.5 py-1 text-xs font-bold tabular-nums text-white backdrop-blur-sm">
+              <span className="rounded-md bg-green-600/90 px-2.5 py-1 text-xs font-bold tabular-nums text-white backdrop-blur-sm">
                 ✓ {confirmedCount}
               </span>
               <span className="rounded-md bg-black/65 px-2.5 py-1 text-xs font-bold tabular-nums text-white backdrop-blur-sm">
@@ -472,7 +487,7 @@ export default function MultiQrScanner() {
           <div className="pointer-events-none absolute inset-x-6 bottom-6 top-6 rounded-2xl border border-dashed border-white/15" />
         </div>
 
-        <p className="mt-3 text-center text-xs text-zinc-500">
+        <p className="mt-3 text-center text-xs text-slate-500">
           複数の QR を同時に映してください（{MIN_HITS_TO_CONFIRM} 回連続検出で確定）
         </p>
       </div>
@@ -483,25 +498,25 @@ export default function MultiQrScanner() {
           view === "list" ? "flex flex-col" : "hidden",
         ].join(" ")}
       >
-        <section className="rounded-2xl bg-[#0c1c34] p-4 ring-1 ring-blue-900/40">
+        <section className="rounded-2xl bg-white p-4 ring-1 ring-slate-200 shadow-sm">
           <dl className="space-y-1.5 text-[15px]">
             <div className="flex justify-between">
-              <dt className="text-zinc-400">納品日</dt>
-              <dd className="font-semibold text-white tabular-nums">
+              <dt className="text-slate-500">納品日</dt>
+              <dd className="font-semibold text-slate-900 tabular-nums">
                 2026/05/14
               </dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-zinc-400">便区分</dt>
-              <dd className="font-semibold text-white">早朝 / TOP / 夜便</dd>
+              <dt className="text-slate-500">便区分</dt>
+              <dd className="font-semibold text-slate-900">早朝 / TOP / 夜便</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-zinc-400">担当 / 車番</dt>
-              <dd className="font-semibold text-white">山田 / #4</dd>
+              <dt className="text-slate-500">担当 / 車番</dt>
+              <dd className="font-semibold text-slate-900">山田 / #4</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-zinc-400">予定個数</dt>
-              <dd className="font-semibold text-white tabular-nums">
+              <dt className="text-slate-500">予定個数</dt>
+              <dd className="font-semibold text-slate-900 tabular-nums">
                 {EXPECTED_ITEMS.length}
               </dd>
             </div>
@@ -509,20 +524,23 @@ export default function MultiQrScanner() {
         </section>
 
         <div className="mt-4 flex items-center justify-between pb-2">
-          <h2 className="text-[15px] font-bold text-white">スキャン状況</h2>
-          <span className="text-sm tabular-nums text-blue-300">
-            {expectedConfirmedCount} / {EXPECTED_ITEMS.length}
+          <h2 className="text-[15px] font-bold text-slate-900">出庫予定</h2>
+          <span className="text-sm tabular-nums text-slate-600">
+            <span className="font-bold text-blue-600">
+              {expectedConfirmedCount}
+            </span>
+            <span className="text-slate-400"> / {EXPECTED_ITEMS.length}</span>
           </span>
         </div>
 
-        <ul className="overflow-hidden rounded-xl bg-[#0c1c34]/60 ring-1 ring-blue-900/30">
+        <ul className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200 shadow-sm">
           {EXPECTED_ITEMS.map((item) => {
             const isConfirmed = confirmedCodes.has(item.code);
             const tentativeHits = tentativeByCode.get(item.code) ?? 0;
             return (
               <li
                 key={item.code}
-                className="flex items-center gap-3 border-b border-blue-900/20 px-3 py-2.5 last:border-0"
+                className="flex items-center gap-3 border-b border-slate-100 px-3 py-2.5 last:border-0"
               >
                 <ItemMark
                   isConfirmed={isConfirmed}
@@ -532,37 +550,92 @@ export default function MultiQrScanner() {
                   className={[
                     "flex-1 font-mono text-sm tabular-nums",
                     isConfirmed
-                      ? "text-zinc-500 line-through"
-                      : "text-zinc-200",
+                      ? "text-slate-400 line-through"
+                      : "text-slate-800",
                   ].join(" ")}
                 >
                   {shortenCode(item.code)}
                 </span>
-                <span className="text-xs text-zinc-400">{item.category}</span>
+                <span className="text-xs text-slate-500">{item.category}</span>
               </li>
             );
           })}
         </ul>
+
+        {(unexpectedConfirmed.length > 0 || unexpectedTentatives.length > 0) && (
+          <>
+            <div className="mt-5 flex items-center justify-between pb-2">
+              <h2 className="text-[15px] font-bold text-slate-900">
+                予定外のスキャン
+              </h2>
+              <span className="text-sm tabular-nums text-amber-700">
+                {unexpectedConfirmed.length} 件
+              </span>
+            </div>
+            <ul className="overflow-hidden rounded-xl bg-amber-50 ring-1 ring-amber-200 shadow-sm">
+              {unexpectedConfirmed.map((c) => (
+                <li
+                  key={c.text}
+                  className="flex items-center gap-3 border-b border-amber-100 px-3 py-2.5 last:border-0"
+                >
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-amber-500">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-3 w-3 text-white"
+                      aria-hidden
+                    >
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                  </span>
+                  <span className="flex-1 break-all font-mono text-sm text-slate-800">
+                    {c.text}
+                  </span>
+                  <span className="text-xs text-amber-700">予定外</span>
+                </li>
+              ))}
+              {unexpectedTentatives.map((t) => (
+                <li
+                  key={t.text}
+                  className="flex items-center gap-3 border-b border-amber-100 px-3 py-2.5 last:border-0"
+                >
+                  <span className="flex h-5 min-w-[1.75rem] shrink-0 items-center justify-center rounded border border-amber-400 px-1 text-[10px] font-bold tabular-nums text-amber-700">
+                    {t.hits}/{MIN_HITS_TO_CONFIRM}
+                  </span>
+                  <span className="flex-1 break-all font-mono text-sm text-slate-700">
+                    {t.text}
+                  </span>
+                  <span className="text-xs text-amber-600">検出中</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </div>
 
       {error && (
-        <div className="mx-5 mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-300 ring-1 ring-red-500/30">
+        <div className="mx-5 mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-200">
           {error}
         </div>
       )}
 
       {supported === false && (
-        <div className="mx-5 mt-3 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-200 ring-1 ring-amber-500/30">
+        <div className="mx-5 mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200">
           このブラウザは BarcodeDetector API に未対応です。Chrome / Edge /
           Android Chrome を推奨します
         </div>
       )}
 
-      <div className="sticky bottom-0 mt-4 grid grid-cols-[1fr_2fr] gap-3 border-t border-blue-900/40 bg-[#091428] px-5 py-4">
+      <div className="sticky bottom-0 mt-4 grid grid-cols-[1fr_2fr] gap-3 border-t border-slate-200 bg-slate-50/95 px-5 py-4 backdrop-blur">
         <button
           type="button"
           onClick={handleAbort}
-          className="rounded-lg border border-zinc-600 bg-transparent px-4 py-3 text-sm font-bold text-zinc-200 transition hover:bg-zinc-800"
+          className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100"
         >
           中断
         </button>
@@ -571,7 +644,7 @@ export default function MultiQrScanner() {
             type="button"
             onClick={handleSubmit}
             disabled={confirmedCount === 0}
-            className="rounded-lg bg-blue-500 px-4 py-3 text-sm font-bold text-white shadow-md shadow-blue-500/30 transition hover:bg-blue-400 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:shadow-none"
+            className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-blue-600/25 transition hover:bg-blue-500 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
           >
             送信({confirmedCount}件)
           </button>
@@ -579,7 +652,7 @@ export default function MultiQrScanner() {
           <button
             type="button"
             onClick={start}
-            className="rounded-lg bg-blue-500 px-4 py-3 text-sm font-bold text-white shadow-md shadow-blue-500/30 transition hover:bg-blue-400"
+            className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-blue-600/25 transition hover:bg-blue-500"
           >
             スキャン開始
           </button>
@@ -598,7 +671,7 @@ function ItemMark({
 }) {
   if (isConfirmed) {
     return (
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-blue-500">
+      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-green-600">
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -616,10 +689,10 @@ function ItemMark({
   }
   if (tentativeHits > 0) {
     return (
-      <span className="flex h-5 min-w-[1.75rem] shrink-0 items-center justify-center rounded border border-zinc-500 px-1 text-[10px] font-bold tabular-nums text-zinc-300">
+      <span className="flex h-5 min-w-[1.75rem] shrink-0 items-center justify-center rounded border border-amber-400 bg-amber-50 px-1 text-[10px] font-bold tabular-nums text-amber-700">
         {tentativeHits}/{MIN_HITS_TO_CONFIRM}
       </span>
     );
   }
-  return <span className="h-5 w-5 shrink-0 rounded border border-zinc-700" />;
+  return <span className="h-5 w-5 shrink-0 rounded border border-slate-300" />;
 }
