@@ -67,9 +67,9 @@ const DEPOTS: Depot[] = [
     id: "toho-amagasaki",
     name: "東邦自動車",
     kind: "shipper",
-    lat: 34.7188,
-    lng: 135.4286,
-    radiusM: 400,
+    lat: 34.756757,
+    lng: 135.445805,
+    radiusM: 2500,
     address: "兵庫県尼崎市小中島1-17-15",
   },
   {
@@ -127,11 +127,15 @@ function haversineMeters(
 function findDepot(
   lat: number,
   lng: number,
+  accuracyM: number = 0,
 ): { depot: Depot; distance: number } | null {
   let best: { depot: Depot; distance: number } | null = null;
+  // GPS の誤差円が拠点円と重なるか(distance - accuracy <= radiusM) で判定。
+  // 屋内/WiFi 測位で精度が ±数百〜数千m に劣化しても拠点を見落とさない。
   for (const d of DEPOTS) {
     const distance = haversineMeters(lat, lng, d.lat, d.lng);
-    if (distance <= d.radiusM && (!best || distance < best.distance)) {
+    const effective = distance - accuracyM;
+    if (effective <= d.radiusM && (!best || distance < best.distance)) {
       best = { depot: d, distance };
     }
   }
@@ -486,7 +490,10 @@ export default function ShipmentInspection() {
   };
 
   const currentDepot = useMemo(
-    () => (position ? findDepot(position.lat, position.lng) : null),
+    () =>
+      position
+        ? findDepot(position.lat, position.lng, position.accuracy)
+        : null,
     [position],
   );
 
