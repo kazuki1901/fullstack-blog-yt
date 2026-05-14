@@ -28,11 +28,6 @@ type TentativeItem = {
   hits: number;
 };
 
-type ExpectedItem = {
-  code: string;
-  category: "早朝" | "TOP" | "夜便";
-};
-
 type LiveBox = {
   text: string;
   x: number;
@@ -46,24 +41,12 @@ type LiveBox = {
 const MIN_HITS_TO_CONFIRM = 5;
 const STALE_TENTATIVE_MS = 1500;
 
-const EXPECTED_ITEMS: ExpectedItem[] = [
-  { code: "OHK-XYZ-000121", category: "早朝" },
-  { code: "OHK-XYZ-000122", category: "早朝" },
-  { code: "OHK-XYZ-000123", category: "TOP" },
-  { code: "OHK-XYZ-000124", category: "早朝" },
-  { code: "OHK-XYZ-000125", category: "夜便" },
-  { code: "OHK-XYZ-000126", category: "夜便" },
-  { code: "OHK-XYZ-000127", category: "早朝" },
-  { code: "OHK-XYZ-000128", category: "TOP" },
-  { code: "OHK-XYZ-000129", category: "早朝" },
-  { code: "OHK-XYZ-000130", category: "夜便" },
-  { code: "OHK-XYZ-000131", category: "早朝" },
-  { code: "OHK-XYZ-000132", category: "TOP" },
-];
-
-function shortenCode(code: string) {
-  if (code.length <= 14) return code;
-  return code.slice(0, 4) + "…" + code.slice(-6);
+function formatTime(ts: number) {
+  const d = new Date(ts);
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${hh}:${mm}:${ss}`;
 }
 
 const subscribeNoop = () => () => {};
@@ -327,39 +310,13 @@ export default function MultiQrScanner() {
     setLiveBoxes([]);
   };
 
-  const confirmedCodes = useMemo(
-    () => new Set(confirmed.map((c) => c.text)),
-    [confirmed],
-  );
-
-  const tentativeByCode = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const t of tentatives) m.set(t.text, t.hits);
-    return m;
-  }, [tentatives]);
-
-  const expectedSet = useMemo(
-    () => new Set(EXPECTED_ITEMS.map((e) => e.code)),
-    [],
-  );
-
-  const expectedConfirmedCount = useMemo(
-    () => confirmed.filter((c) => expectedSet.has(c.text)).length,
-    [confirmed, expectedSet],
-  );
-
-  const unexpectedConfirmed = useMemo(
-    () => confirmed.filter((c) => !expectedSet.has(c.text)),
-    [confirmed, expectedSet],
-  );
-
-  const unexpectedTentatives = useMemo(
-    () => tentatives.filter((t) => !expectedSet.has(t.text)),
-    [tentatives, expectedSet],
-  );
-
   const confirmedCount = confirmed.length;
   const tentativeCount = tentatives.length;
+
+  const recentConfirmed = useMemo(
+    () => [...confirmed].sort((a, b) => b.confirmedAt - a.confirmedAt),
+    [confirmed],
+  );
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-slate-50 text-slate-900">
@@ -394,7 +351,7 @@ export default function MultiQrScanner() {
                 : "text-slate-600 hover:bg-slate-100",
             ].join(" ")}
           >
-            検品状況
+            検品結果
             <span
               className={[
                 "rounded-md px-1.5 py-0.5 text-[11px] tabular-nums",
@@ -403,7 +360,7 @@ export default function MultiQrScanner() {
                   : "bg-blue-100 text-blue-700",
               ].join(" ")}
             >
-              {expectedConfirmedCount}/{EXPECTED_ITEMS.length}
+              {confirmedCount}
             </span>
           </button>
         </div>
@@ -514,107 +471,74 @@ export default function MultiQrScanner() {
               <dt className="text-slate-500">担当 / 車番</dt>
               <dd className="font-semibold text-slate-900">山田 / #4</dd>
             </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">予定個数</dt>
-              <dd className="font-semibold text-slate-900 tabular-nums">
-                {EXPECTED_ITEMS.length}
-              </dd>
-            </div>
           </dl>
         </section>
 
         <div className="mt-4 flex items-center justify-between pb-2">
-          <h2 className="text-[15px] font-bold text-slate-900">出庫予定</h2>
+          <h2 className="text-[15px] font-bold text-slate-900">検品結果</h2>
           <span className="text-sm tabular-nums text-slate-600">
-            <span className="font-bold text-blue-600">
-              {expectedConfirmedCount}
-            </span>
-            <span className="text-slate-400"> / {EXPECTED_ITEMS.length}</span>
+            <span className="font-bold text-blue-600">{confirmedCount}</span>
+            <span className="text-slate-400"> 件確定</span>
+            {tentativeCount > 0 && (
+              <span className="ml-2 text-amber-600">
+                +{tentativeCount} 検出中
+              </span>
+            )}
           </span>
         </div>
 
-        <ul className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200 shadow-sm">
-          {EXPECTED_ITEMS.map((item) => {
-            const isConfirmed = confirmedCodes.has(item.code);
-            const tentativeHits = tentativeByCode.get(item.code) ?? 0;
-            return (
+        {recentConfirmed.length === 0 && tentatives.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm text-slate-500">
+            まだスキャンされた QR はありません。
+            <br />
+            カメラタブから「スキャン開始」を押してください。
+          </div>
+        ) : (
+          <ul className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200 shadow-sm">
+            {recentConfirmed.map((c) => (
               <li
-                key={item.code}
+                key={c.text}
                 className="flex items-center gap-3 border-b border-slate-100 px-3 py-2.5 last:border-0"
               >
-                <ItemMark
-                  isConfirmed={isConfirmed}
-                  tentativeHits={tentativeHits}
-                />
-                <span
-                  className={[
-                    "flex-1 font-mono text-sm tabular-nums",
-                    isConfirmed
-                      ? "text-slate-400 line-through"
-                      : "text-slate-800",
-                  ].join(" ")}
-                >
-                  {shortenCode(item.code)}
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-green-600">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-3 w-3 text-white"
+                    aria-hidden
+                  >
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
                 </span>
-                <span className="text-xs text-slate-500">{item.category}</span>
+                <span className="flex-1 break-all font-mono text-sm text-slate-800">
+                  {c.text}
+                </span>
+                <span className="shrink-0 font-mono text-[11px] tabular-nums text-slate-400">
+                  {formatTime(c.confirmedAt)}
+                </span>
               </li>
-            );
-          })}
-        </ul>
-
-        {(unexpectedConfirmed.length > 0 || unexpectedTentatives.length > 0) && (
-          <>
-            <div className="mt-5 flex items-center justify-between pb-2">
-              <h2 className="text-[15px] font-bold text-slate-900">
-                予定外のスキャン
-              </h2>
-              <span className="text-sm tabular-nums text-amber-700">
-                {unexpectedConfirmed.length} 件
-              </span>
-            </div>
-            <ul className="overflow-hidden rounded-xl bg-amber-50 ring-1 ring-amber-200 shadow-sm">
-              {unexpectedConfirmed.map((c) => (
-                <li
-                  key={c.text}
-                  className="flex items-center gap-3 border-b border-amber-100 px-3 py-2.5 last:border-0"
-                >
-                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-amber-500">
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="h-3 w-3 text-white"
-                      aria-hidden
-                    >
-                      <line x1="12" y1="9" x2="12" y2="13" />
-                      <line x1="12" y1="17" x2="12.01" y2="17" />
-                    </svg>
-                  </span>
-                  <span className="flex-1 break-all font-mono text-sm text-slate-800">
-                    {c.text}
-                  </span>
-                  <span className="text-xs text-amber-700">予定外</span>
-                </li>
-              ))}
-              {unexpectedTentatives.map((t) => (
-                <li
-                  key={t.text}
-                  className="flex items-center gap-3 border-b border-amber-100 px-3 py-2.5 last:border-0"
-                >
-                  <span className="flex h-5 min-w-[1.75rem] shrink-0 items-center justify-center rounded border border-amber-400 px-1 text-[10px] font-bold tabular-nums text-amber-700">
-                    {t.hits}/{MIN_HITS_TO_CONFIRM}
-                  </span>
-                  <span className="flex-1 break-all font-mono text-sm text-slate-700">
-                    {t.text}
-                  </span>
-                  <span className="text-xs text-amber-600">検出中</span>
-                </li>
-              ))}
-            </ul>
-          </>
+            ))}
+            {tentatives.map((t) => (
+              <li
+                key={`tent-${t.text}`}
+                className="flex items-center gap-3 border-b border-slate-100 bg-amber-50/60 px-3 py-2.5 last:border-0"
+              >
+                <span className="flex h-5 min-w-[1.75rem] shrink-0 items-center justify-center rounded border border-amber-400 bg-amber-50 px-1 text-[10px] font-bold tabular-nums text-amber-700">
+                  {t.hits}/{MIN_HITS_TO_CONFIRM}
+                </span>
+                <span className="flex-1 break-all font-mono text-sm text-slate-700">
+                  {t.text}
+                </span>
+                <span className="shrink-0 text-[11px] text-amber-700">
+                  検出中
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 
@@ -660,39 +584,4 @@ export default function MultiQrScanner() {
       </div>
     </div>
   );
-}
-
-function ItemMark({
-  isConfirmed,
-  tentativeHits,
-}: {
-  isConfirmed: boolean;
-  tentativeHits: number;
-}) {
-  if (isConfirmed) {
-    return (
-      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-green-600">
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="h-3 w-3 text-white"
-          aria-hidden
-        >
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-      </span>
-    );
-  }
-  if (tentativeHits > 0) {
-    return (
-      <span className="flex h-5 min-w-[1.75rem] shrink-0 items-center justify-center rounded border border-amber-400 bg-amber-50 px-1 text-[10px] font-bold tabular-nums text-amber-700">
-        {tentativeHits}/{MIN_HITS_TO_CONFIRM}
-      </span>
-    );
-  }
-  return <span className="h-5 w-5 shrink-0 rounded border border-slate-300" />;
 }
