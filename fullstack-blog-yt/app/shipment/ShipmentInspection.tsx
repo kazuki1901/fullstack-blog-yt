@@ -8,7 +8,10 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import type { BarcodeDetectorInstance } from "@/app/lib/barcode-detector";
+import {
+  ensureBarcodeDetector,
+  type BarcodeDetectorInstance,
+} from "@/app/lib/barcode-detector";
 
 type CodeState = {
   text: string;
@@ -124,9 +127,17 @@ export default function ShipmentInspection() {
 
   const start = async () => {
     setError(null);
+    try {
+      await ensureBarcodeDetector();
+    } catch {
+      setError(
+        "QR 解読モジュールの読み込みに失敗しました。通信状況を確認してください。",
+      );
+      return;
+    }
     if (typeof window.BarcodeDetector !== "function") {
       setError(
-        "このブラウザは BarcodeDetector API に未対応です。Chrome / Edge / Android Chrome をお試しください。",
+        "このブラウザでは QR 解読が動きません。Chrome / Edge / iOS Safari でお試しください。",
       );
       return;
     }
@@ -550,8 +561,8 @@ export default function ShipmentInspection() {
 
       {supported === false && (
         <div className="mx-5 mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200">
-          このブラウザは BarcodeDetector API に未対応です。Chrome / Edge /
-          Android Chrome を推奨します
+          このブラウザでは標準の QR 解読 API が無いため、初回スキャン時に
+          ポリフィルを読み込みます(数秒)
         </div>
       )}
 
