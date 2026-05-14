@@ -73,10 +73,25 @@ export default function ShipmentInspection() {
   const [liveCount, setLiveCount] = useState(0);
   const [liveBoxes, setLiveBoxes] = useState<LiveBox[]>([]);
   const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
+  const [position, setPosition] = useState<{
+    lat: number;
+    lng: number;
+    accuracy: number;
+    at: number;
+  } | null>(null);
+  const [positionError, setPositionError] = useState<string | null>(null);
+  const [positionLoading, setPositionLoading] = useState(false);
   const [submitted, setSubmitted] = useState<{
     count: number;
     codes: string[];
     at: number;
+    position: {
+      lat: number;
+      lng: number;
+      accuracy: number;
+      at: number;
+    } | null;
+    positionError: string | null;
   } | null>(null);
 
   const supported = useSyncExternalStore(
@@ -84,6 +99,39 @@ export default function ShipmentInspection() {
     getSupportedClient,
     getSupportedServer,
   );
+
+  const capturePosition = useCallback(() => {
+    setPositionError(null);
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setPositionError("この端末は位置情報に未対応です");
+      return;
+    }
+    setPositionLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setPosition({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          at: Date.now(),
+        });
+        setPositionLoading(false);
+      },
+      (err) => {
+        setPositionLoading(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          setPositionError("位置情報の許可が必要です");
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          setPositionError("位置情報を取得できませんでした(電波/GPS 状態)");
+        } else if (err.code === err.TIMEOUT) {
+          setPositionError("位置情報の取得がタイムアウトしました");
+        } else {
+          setPositionError("位置情報を取得できませんでした");
+        }
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 },
+    );
+  }, []);
 
   const beep = useCallback(() => {
     const ctx = audioCtxRef.current;
@@ -132,6 +180,7 @@ export default function ShipmentInspection() {
 
   const start = async () => {
     setError(null);
+    capturePosition();
     try {
       await ensureBarcodeDetector();
     } catch {
@@ -320,11 +369,19 @@ export default function ShipmentInspection() {
     if (confirmed.length === 0) return;
     const codes = confirmed.map((c) => c.text);
     if (scanning) stop();
-    setSubmitted({ count: confirmed.length, codes, at: Date.now() });
+    setSubmitted({
+      count: confirmed.length,
+      codes,
+      at: Date.now(),
+      position,
+      positionError,
+    });
     candidatesRef.current.clear();
     setConfirmed([]);
     setTentatives([]);
     setLiveBoxes([]);
+    setPosition(null);
+    setPositionError(null);
   };
 
   const handleSubmittedDismiss = () => {
@@ -463,6 +520,39 @@ export default function ShipmentInspection() {
           </div>
 
           <div className="pointer-events-none absolute inset-x-6 bottom-6 top-6 rounded-2xl border border-dashed border-white/15" />
+
+          {(positionLoading || position || positionError) && (
+            <div className="pointer-events-auto absolute inset-x-3 bottom-3 flex items-center gap-2">
+              <span
+                className={[
+                  "flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold shadow-sm backdrop-blur-sm",
+                  positionError
+                    ? "bg-amber-500/90 text-white"
+                    : position
+                      ? "bg-black/65 text-white"
+                      : "bg-black/65 text-white",
+                ].join(" ")}
+              >
+                <span aria-hidden>📍</span>
+                {positionLoading
+                  ? "位置取得中…"
+                  : positionError
+                    ? positionError
+                    : position
+                      ? `${position.lat.toFixed(5)}, ${position.lng.toFixed(5)} (±${Math.round(position.accuracy)}m)`
+                      : ""}
+              </span>
+              {positionError && (
+                <button
+                  type="button"
+                  onClick={capturePosition}
+                  className="shrink-0 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-slate-800 shadow-sm transition active:bg-white"
+                >
+                  再取得
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <p className="mt-3 text-center text-xs text-slate-500">
@@ -609,6 +699,8 @@ export default function ShipmentInspection() {
           count={submitted.count}
           codes={submitted.codes}
           at={submitted.at}
+          position={submitted.position}
+          positionError={submitted.positionError}
           onDismiss={handleSubmittedDismiss}
         />
       )}
@@ -620,14 +712,26 @@ function SubmittedModal({
   count,
   codes,
   at,
+  position,
+  positionError,
   onDismiss,
 }: {
   count: number;
   codes: string[];
   at: number;
+  position: {
+    lat: number;
+    lng: number;
+    accuracy: number;
+    at: number;
+  } | null;
+  positionError: string | null;
   onDismiss: () => void;
 }) {
   const time = formatTime(at);
+  const mapUrl = position
+    ? `https://www.google.com/maps?q=${position.lat},${position.lng}`
+    : null;
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/55 backdrop-blur-sm sm:items-center"
@@ -671,6 +775,36 @@ function SubmittedModal({
               山田 / #4
             </dd>
           </dl>
+        </div>
+
+        <div className="mx-5 mb-4 overflow-hidden rounded-2xl ring-1 ring-slate-200">
+          <div className="flex items-center gap-1.5 bg-slate-100 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+            <span aria-hidden>📍</span>位置情報スナップショット
+          </div>
+          {position ? (
+            <div className="bg-white px-3 py-2.5">
+              <p className="font-mono text-[12px] tabular-nums text-slate-800">
+                {position.lat.toFixed(6)}, {position.lng.toFixed(6)}
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-500">
+                精度 ±{Math.round(position.accuracy)}m ・ 取得 {formatTime(position.at)}
+              </p>
+              {mapUrl && (
+                <a
+                  href={mapUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-block rounded-md bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700 ring-1 ring-blue-200 transition hover:bg-blue-100"
+                >
+                  地図で開く →
+                </a>
+              )}
+            </div>
+          ) : (
+            <div className="bg-amber-50 px-3 py-2.5 text-[12px] text-amber-800">
+              ⚠ {positionError ?? "位置情報を取得できませんでした"}
+            </div>
+          )}
         </div>
 
         {codes.length > 0 && (
