@@ -41,8 +41,79 @@ type LiveBox = {
   hits: number;
 };
 
-const MIN_HITS_TO_CONFIRM = 5;
+const MIN_HITS_TO_CONFIRM = 10;
 const STALE_TENTATIVE_MS = 1500;
+
+type Depot = {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  radiusM: number;
+};
+
+const DEPOTS: Depot[] = [
+  {
+    id: "osaka",
+    name: "大阪営業所",
+    lat: 34.7024,
+    lng: 135.4959,
+    radiusM: 800,
+  },
+  {
+    id: "kyoto-relay",
+    name: "京都中継所",
+    lat: 35.0116,
+    lng: 135.7681,
+    radiusM: 800,
+  },
+  {
+    id: "fukui-relay",
+    name: "福井中継所",
+    lat: 36.0652,
+    lng: 136.2216,
+    radiusM: 800,
+  },
+  {
+    id: "kanazawa",
+    name: "金沢営業所",
+    lat: 36.578,
+    lng: 136.6485,
+    radiusM: 800,
+  },
+];
+
+function haversineMeters(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function findDepot(
+  lat: number,
+  lng: number,
+): { depot: Depot; distance: number } | null {
+  let best: { depot: Depot; distance: number } | null = null;
+  for (const d of DEPOTS) {
+    const distance = haversineMeters(lat, lng, d.lat, d.lng);
+    if (distance <= d.radiusM && (!best || distance < best.distance)) {
+      best = { depot: d, distance };
+    }
+  }
+  return best;
+}
 
 function formatTime(ts: number) {
   const d = new Date(ts);
@@ -50,6 +121,16 @@ function formatTime(ts: number) {
   const mm = String(d.getMinutes()).padStart(2, "0");
   const ss = String(d.getSeconds()).padStart(2, "0");
   return `${hh}:${mm}:${ss}`;
+}
+
+function isSameDay(a: number, b: number) {
+  const da = new Date(a);
+  const db = new Date(b);
+  return (
+    da.getFullYear() === db.getFullYear() &&
+    da.getMonth() === db.getMonth() &&
+    da.getDate() === db.getDate()
+  );
 }
 
 const subscribeNoop = () => () => {};
@@ -65,7 +146,7 @@ export default function ShipmentInspection() {
   const runningRef = useRef(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  const [view, setView] = useState<"camera" | "list">("camera");
+  const [view, setView] = useState<"camera" | "list" | "history">("camera");
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState<ConfirmedItem[]>([]);
@@ -92,7 +173,23 @@ export default function ShipmentInspection() {
       at: number;
     } | null;
     positionError: string | null;
+    depot: Depot | null;
   } | null>(null);
+  const [history, setHistory] = useState<
+    {
+      id: string;
+      at: number;
+      count: number;
+      codes: string[];
+      position: {
+        lat: number;
+        lng: number;
+        accuracy: number;
+        at: number;
+      } | null;
+      depot: Depot | null;
+    }[]
+  >([]);
 
   const supported = useSyncExternalStore(
     subscribeNoop,
@@ -365,17 +462,42 @@ export default function ShipmentInspection() {
     setLiveBoxes([]);
   };
 
+  const currentDepot = useMemo(
+    () => (position ? findDepot(position.lat, position.lng) : null),
+    [position],
+  );
+
+  const [sessionStartMs] = useState(() => Date.now());
+  const todayHistoryCount = useMemo(
+    () => history.filter((h) => isSameDay(h.at, sessionStartMs)).length,
+    [history, sessionStartMs],
+  );
+
   const handleSubmit = () => {
     if (confirmed.length === 0) return;
     const codes = confirmed.map((c) => c.text);
     if (scanning) stop();
+    const now = Date.now();
+    const depot = currentDepot?.depot ?? null;
     setSubmitted({
       count: confirmed.length,
       codes,
-      at: Date.now(),
+      at: now,
       position,
       positionError,
+      depot,
     });
+    setHistory((prev) => [
+      {
+        id: `sub-${now}`,
+        at: now,
+        count: confirmed.length,
+        codes,
+        position,
+        depot,
+      },
+      ...prev,
+    ]);
     candidatesRef.current.clear();
     setConfirmed([]);
     setTentatives([]);
@@ -406,12 +528,12 @@ export default function ShipmentInspection() {
       </header>
 
       <nav className="px-5 pb-3">
-        <div className="grid grid-cols-2 gap-2 rounded-xl bg-white p-1 ring-1 ring-slate-200">
+        <div className="grid grid-cols-3 gap-1.5 rounded-xl bg-white p-1 ring-1 ring-slate-200">
           <button
             type="button"
             onClick={() => setView("camera")}
             className={[
-              "rounded-lg px-3 py-2 text-sm font-bold transition",
+              "rounded-lg px-2 py-2 text-[13px] font-bold transition",
               view === "camera"
                 ? "bg-blue-600 text-white shadow"
                 : "text-slate-600 hover:bg-slate-100",
@@ -423,7 +545,7 @@ export default function ShipmentInspection() {
             type="button"
             onClick={() => setView("list")}
             className={[
-              "flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition",
+              "flex items-center justify-center gap-1 rounded-lg px-2 py-2 text-[13px] font-bold transition",
               view === "list"
                 ? "bg-blue-600 text-white shadow"
                 : "text-slate-600 hover:bg-slate-100",
@@ -432,13 +554,35 @@ export default function ShipmentInspection() {
             検品結果
             <span
               className={[
-                "rounded-md px-1.5 py-0.5 text-[11px] tabular-nums",
+                "rounded-md px-1.5 py-0.5 text-[10px] tabular-nums",
                 view === "list"
                   ? "bg-white/25"
                   : "bg-blue-100 text-blue-700",
               ].join(" ")}
             >
               {confirmedCount}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("history")}
+            className={[
+              "flex items-center justify-center gap-1 rounded-lg px-2 py-2 text-[13px] font-bold transition",
+              view === "history"
+                ? "bg-blue-600 text-white shadow"
+                : "text-slate-600 hover:bg-slate-100",
+            ].join(" ")}
+          >
+            当日履歴
+            <span
+              className={[
+                "rounded-md px-1.5 py-0.5 text-[10px] tabular-nums",
+                view === "history"
+                  ? "bg-white/25"
+                  : "bg-blue-100 text-blue-700",
+              ].join(" ")}
+            >
+              {todayHistoryCount}
             </span>
           </button>
         </div>
@@ -528,8 +672,8 @@ export default function ShipmentInspection() {
                   "flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold shadow-sm backdrop-blur-sm",
                   positionError
                     ? "bg-amber-500/90 text-white"
-                    : position
-                      ? "bg-black/65 text-white"
+                    : currentDepot
+                      ? "bg-green-600/95 text-white"
                       : "bg-black/65 text-white",
                 ].join(" ")}
               >
@@ -538,9 +682,11 @@ export default function ShipmentInspection() {
                   ? "位置取得中…"
                   : positionError
                     ? positionError
-                    : position
-                      ? `${position.lat.toFixed(5)}, ${position.lng.toFixed(5)} (±${Math.round(position.accuracy)}m)`
-                      : ""}
+                    : currentDepot
+                      ? `${currentDepot.depot.name} (±${Math.round(currentDepot.distance)}m)`
+                      : position
+                        ? `拠点外 ${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}`
+                        : ""}
               </span>
               {positionError && (
                 <button
@@ -653,6 +799,15 @@ export default function ShipmentInspection() {
         )}
       </div>
 
+      <div
+        className={[
+          "flex-1 px-5 pb-2",
+          view === "history" ? "flex flex-col" : "hidden",
+        ].join(" ")}
+      >
+        <HistoryView history={history} />
+      </div>
+
       {error && (
         <div className="mx-5 mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-200">
           {error}
@@ -701,10 +856,159 @@ export default function ShipmentInspection() {
           at={submitted.at}
           position={submitted.position}
           positionError={submitted.positionError}
+          depot={submitted.depot}
           onDismiss={handleSubmittedDismiss}
         />
       )}
     </div>
+  );
+}
+
+function HistoryView({
+  history,
+}: {
+  history: {
+    id: string;
+    at: number;
+    count: number;
+    codes: string[];
+    position: {
+      lat: number;
+      lng: number;
+      accuracy: number;
+      at: number;
+    } | null;
+    depot: Depot | null;
+  }[];
+}) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [sessionStartMs] = useState(() => Date.now());
+  const today = useMemo(
+    () => history.filter((h) => isSameDay(h.at, sessionStartMs)),
+    [history, sessionStartMs],
+  );
+  const totalCount = useMemo(
+    () => today.reduce((sum, h) => sum + h.count, 0),
+    [today],
+  );
+  const depotSummary = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const h of today) {
+      const key = h.depot?.name ?? "拠点外";
+      m.set(key, (m.get(key) ?? 0) + h.count);
+    }
+    return [...m.entries()];
+  }, [today]);
+
+  if (today.length === 0) {
+    return (
+      <div className="mt-2 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm text-slate-500">
+        本日の送信履歴はまだありません。
+        <br />
+        スキャンして送信すると、ここに記録されます。
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <section className="mt-2 rounded-2xl bg-white p-4 ring-1 ring-slate-200 shadow-sm">
+        <p className="text-[12px] text-slate-500">本日の合計</p>
+        <p className="text-[26px] font-bold tabular-nums text-slate-900">
+          {totalCount}{" "}
+          <span className="text-[14px] font-semibold text-slate-500">件</span>
+          <span className="ml-2 text-[14px] font-semibold text-slate-500">
+            ／ {today.length} 回送信
+          </span>
+        </p>
+        {depotSummary.length > 0 && (
+          <ul className="mt-2 flex flex-wrap gap-1.5">
+            {depotSummary.map(([name, count]) => (
+              <li
+                key={name}
+                className={[
+                  "rounded-md px-2 py-1 text-[11px] font-bold ring-1",
+                  name === "拠点外"
+                    ? "bg-amber-50 text-amber-700 ring-amber-200"
+                    : "bg-green-50 text-green-700 ring-green-200",
+                ].join(" ")}
+              >
+                {name}: {count} 件
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <ul className="mt-3 space-y-2">
+        {today.map((h) => {
+          const expanded = expandedId === h.id;
+          return (
+            <li key={h.id}>
+              <button
+                type="button"
+                onClick={() =>
+                  setExpandedId((prev) => (prev === h.id ? null : h.id))
+                }
+                className="flex w-full items-start gap-3 rounded-2xl bg-white px-4 py-3 text-left ring-1 ring-slate-200 shadow-sm transition active:bg-slate-50"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    {h.depot ? (
+                      <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold ring-1 bg-green-100 text-green-800 ring-green-300">
+                        📍 {h.depot.name}
+                      </span>
+                    ) : (
+                      <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold ring-1 bg-amber-100 text-amber-800 ring-amber-300">
+                        拠点外
+                      </span>
+                    )}
+                    <span className="text-[15px] font-bold text-slate-900 tabular-nums">
+                      {h.count} 件
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[12px] text-slate-500 tabular-nums">
+                    送信 {formatTime(h.at)}
+                  </p>
+                </div>
+                <span
+                  className={[
+                    "shrink-0 text-xl transition-transform text-slate-400",
+                    expanded ? "rotate-90" : "",
+                  ].join(" ")}
+                >
+                  ›
+                </span>
+              </button>
+              {expanded && (
+                <div className="mt-1 overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
+                  {h.position && (
+                    <div className="border-b border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+                      位置: {h.position.lat.toFixed(6)},{" "}
+                      {h.position.lng.toFixed(6)} (±
+                      {Math.round(h.position.accuracy)}m)
+                    </div>
+                  )}
+                  <ul className="max-h-56 overflow-y-auto">
+                    {h.codes.map((c) => (
+                      <li
+                        key={c}
+                        className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-0"
+                      >
+                        <span className="text-green-600">✓</span>
+                        <span className="flex-1 break-all font-mono text-[12px] text-slate-700">
+                          {c}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }
 
@@ -714,6 +1018,7 @@ function SubmittedModal({
   at,
   position,
   positionError,
+  depot,
   onDismiss,
 }: {
   count: number;
@@ -726,6 +1031,7 @@ function SubmittedModal({
     at: number;
   } | null;
   positionError: string | null;
+  depot: Depot | null;
   onDismiss: () => void;
 }) {
   const time = formatTime(at);
@@ -779,15 +1085,21 @@ function SubmittedModal({
 
         <div className="mx-5 mb-4 overflow-hidden rounded-2xl ring-1 ring-slate-200">
           <div className="flex items-center gap-1.5 bg-slate-100 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-            <span aria-hidden>📍</span>位置情報スナップショット
+            <span aria-hidden>📍</span>送信元拠点
           </div>
           {position ? (
             <div className="bg-white px-3 py-2.5">
-              <p className="font-mono text-[12px] tabular-nums text-slate-800">
-                {position.lat.toFixed(6)}, {position.lng.toFixed(6)}
-              </p>
-              <p className="mt-0.5 text-[11px] text-slate-500">
-                精度 ±{Math.round(position.accuracy)}m ・ 取得 {formatTime(position.at)}
+              {depot ? (
+                <p className="text-[15px] font-bold text-green-700">
+                  {depot.name}
+                </p>
+              ) : (
+                <p className="text-[14px] font-bold text-amber-700">
+                  拠点外（未登録の場所）
+                </p>
+              )}
+              <p className="mt-1 font-mono text-[11px] tabular-nums text-slate-500">
+                {position.lat.toFixed(6)}, {position.lng.toFixed(6)} ・ ±{Math.round(position.accuracy)}m ・ {formatTime(position.at)}
               </p>
               {mapUrl && (
                 <a
