@@ -173,7 +173,7 @@ export default function ShipmentInspection() {
   const runningRef = useRef(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  const [view, setView] = useState<"camera" | "list" | "history">("camera");
+  const [view, setView] = useState<"camera" | "history">("camera");
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState<ConfirmedItem[]>([]);
@@ -543,11 +543,6 @@ export default function ShipmentInspection() {
   const confirmedCount = confirmed.length;
   const tentativeCount = tentatives.length;
 
-  const recentConfirmed = useMemo(
-    () => [...confirmed].sort((a, b) => b.confirmedAt - a.confirmedAt),
-    [confirmed],
-  );
-
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-slate-50 text-slate-900">
       <header className="px-5 pt-6 pb-2">
@@ -558,12 +553,12 @@ export default function ShipmentInspection() {
       </header>
 
       <nav className="px-5 pb-3">
-        <div className="grid grid-cols-3 gap-1.5 rounded-xl bg-white p-1 ring-1 ring-slate-200">
+        <div className="grid grid-cols-2 gap-2 rounded-xl bg-white p-1 ring-1 ring-slate-200">
           <button
             type="button"
             onClick={() => setView("camera")}
             className={[
-              "rounded-lg px-2 py-2 text-[13px] font-bold transition",
+              "rounded-lg px-3 py-2 text-sm font-bold transition",
               view === "camera"
                 ? "bg-blue-600 text-white shadow"
                 : "text-slate-600 hover:bg-slate-100",
@@ -573,31 +568,9 @@ export default function ShipmentInspection() {
           </button>
           <button
             type="button"
-            onClick={() => setView("list")}
-            className={[
-              "flex items-center justify-center gap-1 rounded-lg px-2 py-2 text-[13px] font-bold transition",
-              view === "list"
-                ? "bg-blue-600 text-white shadow"
-                : "text-slate-600 hover:bg-slate-100",
-            ].join(" ")}
-          >
-            検品結果
-            <span
-              className={[
-                "rounded-md px-1.5 py-0.5 text-[10px] tabular-nums",
-                view === "list"
-                  ? "bg-white/25"
-                  : "bg-blue-100 text-blue-700",
-              ].join(" ")}
-            >
-              {confirmedCount}
-            </span>
-          </button>
-          <button
-            type="button"
             onClick={() => setView("history")}
             className={[
-              "flex items-center justify-center gap-1 rounded-lg px-2 py-2 text-[13px] font-bold transition",
+              "flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition",
               view === "history"
                 ? "bg-blue-600 text-white shadow"
                 : "text-slate-600 hover:bg-slate-100",
@@ -606,7 +579,7 @@ export default function ShipmentInspection() {
             当日履歴
             <span
               className={[
-                "rounded-md px-1.5 py-0.5 text-[10px] tabular-nums",
+                "rounded-md px-1.5 py-0.5 text-[11px] tabular-nums",
                 view === "history"
                   ? "bg-white/25"
                   : "bg-blue-100 text-blue-700",
@@ -734,99 +707,6 @@ export default function ShipmentInspection() {
         <p className="mt-3 text-center text-xs text-slate-500">
           複数の QR を同時に映してください（{MIN_HITS_TO_CONFIRM} 回連続検出で確定）
         </p>
-      </div>
-
-      <div
-        className={[
-          "flex-1 px-5",
-          view === "list" ? "flex flex-col" : "hidden",
-        ].join(" ")}
-      >
-        <section className="rounded-2xl bg-white p-4 ring-1 ring-slate-200 shadow-sm">
-          <dl className="space-y-1.5 text-[15px]">
-            <div className="flex justify-between">
-              <dt className="text-slate-500">納品日</dt>
-              <dd className="font-semibold text-slate-900 tabular-nums">
-                2026/05/14
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">便区分</dt>
-              <dd className="font-semibold text-slate-900">早朝 / TOP / 夜便</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">担当 / 車番</dt>
-              <dd className="font-semibold text-slate-900">山田 / #4</dd>
-            </div>
-          </dl>
-        </section>
-
-        <div className="mt-4 flex items-center justify-between pb-2">
-          <h2 className="text-[15px] font-bold text-slate-900">検品結果</h2>
-          <span className="text-sm tabular-nums text-slate-600">
-            <span className="font-bold text-blue-600">{confirmedCount}</span>
-            <span className="text-slate-400"> 件確定</span>
-            {tentativeCount > 0 && (
-              <span className="ml-2 text-amber-600">
-                +{tentativeCount} 検出中
-              </span>
-            )}
-          </span>
-        </div>
-
-        {recentConfirmed.length === 0 && tentatives.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm text-slate-500">
-            まだスキャンされた QR はありません。
-            <br />
-            カメラタブから「スキャン開始」を押してください。
-          </div>
-        ) : (
-          <ul className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200 shadow-sm">
-            {recentConfirmed.map((c) => (
-              <li
-                key={c.text}
-                className="flex items-center gap-3 border-b border-slate-100 px-3 py-2.5 last:border-0"
-              >
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-green-600">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-3 w-3 text-white"
-                    aria-hidden
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </span>
-                <span className="flex-1 break-all font-mono text-sm text-slate-800">
-                  {c.text}
-                </span>
-                <span className="shrink-0 font-mono text-[11px] tabular-nums text-slate-400">
-                  {formatTime(c.confirmedAt)}
-                </span>
-              </li>
-            ))}
-            {tentatives.map((t) => (
-              <li
-                key={`tent-${t.text}`}
-                className="flex items-center gap-3 border-b border-slate-100 bg-amber-50/60 px-3 py-2.5 last:border-0"
-              >
-                <span className="flex h-5 min-w-[1.75rem] shrink-0 items-center justify-center rounded border border-amber-400 bg-amber-50 px-1 text-[10px] font-bold tabular-nums text-amber-700">
-                  {t.hits}/{MIN_HITS_TO_CONFIRM}
-                </span>
-                <span className="flex-1 break-all font-mono text-sm text-slate-700">
-                  {t.text}
-                </span>
-                <span className="shrink-0 text-[11px] text-amber-700">
-                  検出中
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
 
       <div
