@@ -73,6 +73,11 @@ export default function ShipmentInspection() {
   const [liveCount, setLiveCount] = useState(0);
   const [liveBoxes, setLiveBoxes] = useState<LiveBox[]>([]);
   const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
+  const [submitted, setSubmitted] = useState<{
+    count: number;
+    codes: string[];
+    at: number;
+  } | null>(null);
 
   const supported = useSyncExternalStore(
     subscribeNoop,
@@ -314,11 +319,16 @@ export default function ShipmentInspection() {
   const handleSubmit = () => {
     if (confirmed.length === 0) return;
     const codes = confirmed.map((c) => c.text);
-    alert(`${confirmed.length}件を送信しました\n\n${codes.join("\n")}`);
+    if (scanning) stop();
+    setSubmitted({ count: confirmed.length, codes, at: Date.now() });
     candidatesRef.current.clear();
     setConfirmed([]);
     setTentatives([]);
     setLiveBoxes([]);
+  };
+
+  const handleSubmittedDismiss = () => {
+    setSubmitted(null);
   };
 
   const confirmedCount = confirmed.length;
@@ -592,6 +602,107 @@ export default function ShipmentInspection() {
             スキャン開始
           </button>
         )}
+      </div>
+
+      {submitted && (
+        <SubmittedModal
+          count={submitted.count}
+          codes={submitted.codes}
+          at={submitted.at}
+          onDismiss={handleSubmittedDismiss}
+        />
+      )}
+    </div>
+  );
+}
+
+function SubmittedModal({
+  count,
+  codes,
+  at,
+  onDismiss,
+}: {
+  count: number;
+  codes: string[];
+  at: number;
+  onDismiss: () => void;
+}) {
+  const time = formatTime(at);
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/55 backdrop-blur-sm sm:items-center"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="flex max-h-[88vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+        <div className="flex flex-col items-center gap-2 px-5 pt-8 pb-4">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-green-700">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-8 w-8"
+              aria-hidden
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </span>
+          <h2 className="text-[20px] font-bold text-slate-900">送信されました</h2>
+          <p className="text-[13px] text-slate-500">
+            出庫検品の結果をサーバーへ送信しました
+          </p>
+        </div>
+
+        <div className="mx-5 mb-4 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200">
+          <dl className="grid grid-cols-2 gap-y-2 text-[14px]">
+            <dt className="text-slate-500">送信件数</dt>
+            <dd className="text-right font-bold tabular-nums text-slate-900">
+              {count} 件
+            </dd>
+            <dt className="text-slate-500">送信時刻</dt>
+            <dd className="text-right font-bold tabular-nums text-slate-900">
+              {time}
+            </dd>
+            <dt className="text-slate-500">担当 / 車番</dt>
+            <dd className="text-right font-bold text-slate-900">
+              山田 / #4
+            </dd>
+          </dl>
+        </div>
+
+        {codes.length > 0 && (
+          <div className="mx-5 mb-4 overflow-hidden rounded-xl ring-1 ring-slate-200">
+            <div className="bg-slate-100 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              送信したコード
+            </div>
+            <ul className="max-h-40 overflow-y-auto bg-white">
+              {codes.map((c) => (
+                <li
+                  key={c}
+                  className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-0"
+                >
+                  <span className="text-green-600">✓</span>
+                  <span className="flex-1 break-all font-mono text-[12px] text-slate-700">
+                    {c}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="border-t border-slate-200 px-5 py-4">
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-blue-600/25 transition hover:bg-blue-500"
+          >
+            閉じる
+          </button>
+        </div>
       </div>
     </div>
   );
