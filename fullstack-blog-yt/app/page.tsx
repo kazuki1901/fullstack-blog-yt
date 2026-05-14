@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/app/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const posts = await prisma.post.findMany({
     orderBy: { date: "desc" },
@@ -14,12 +16,18 @@ export default async function Home() {
         </h1>
       </div>
 
-      <div className="flex my-5">
+      <div className="flex flex-wrap justify-center gap-3 my-5">
         <Link
           href={"/blog/add"}
-          className=" md:w-1/6 sm:w-2/4 text-center rounded-md p-2 m-auto bg-slate-300 font-semibold"
+          className="md:w-1/6 sm:w-2/4 text-center rounded-md p-2 bg-slate-300 font-semibold"
         >
           ブログ新規作成
+        </Link>
+        <Link
+          href={"/qr"}
+          className="md:w-1/6 sm:w-2/4 text-center rounded-md p-2 bg-slate-300 font-semibold"
+        >
+          QRコード読み取り
         </Link>
       </div>
 
