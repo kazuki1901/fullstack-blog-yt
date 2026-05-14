@@ -119,25 +119,40 @@ const getSupportedServer = (): boolean | null => null;
 
 export default function DeliveryInspection() {
   const [destination, setDestination] = useState<Destination | null>(null);
+  const [completed, setCompleted] = useState<Map<string, number>>(new Map());
 
   if (destination === null) {
-    return <DestinationPicker onPick={setDestination} />;
+    return (
+      <DestinationPicker onPick={setDestination} completed={completed} />
+    );
   }
 
   return (
     <InspectionWorkflow
       destination={destination}
       onBack={() => setDestination(null)}
+      onComplete={(id) => {
+        setCompleted((prev) => {
+          const next = new Map(prev);
+          next.set(id, Date.now());
+          return next;
+        });
+        setDestination(null);
+      }}
     />
   );
 }
 
 function DestinationPicker({
   onPick,
+  completed,
 }: {
   onPick: (d: Destination) => void;
+  completed: Map<string, number>;
 }) {
   const totalItems = DESTINATIONS.reduce((sum, d) => sum + d.items.length, 0);
+  const doneCount = DESTINATIONS.filter((d) => completed.has(d.id)).length;
+  const allDelivered = doneCount === DESTINATIONS.length;
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-slate-50 text-slate-900">
@@ -147,6 +162,12 @@ function DestinationPicker({
           納品先を選択
         </h1>
       </header>
+
+      {allDelivered && (
+        <div className="mx-5 mb-3 rounded-xl bg-green-50 px-3 py-2.5 text-[13px] font-bold text-green-800 ring-1 ring-green-200">
+          ✓ 本日の納品はすべて完了しました
+        </div>
+      )}
 
       <section className="mx-5 mb-4 rounded-2xl bg-white p-4 ring-1 ring-slate-200 shadow-sm">
         <dl className="space-y-1.5 text-[15px]">
@@ -161,9 +182,10 @@ function DestinationPicker({
             <dd className="font-semibold text-slate-900">山田 / #4</dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-slate-500">納品先数</dt>
-            <dd className="font-semibold text-slate-900 tabular-nums">
-              {DESTINATIONS.length}
+            <dt className="text-slate-500">進捗</dt>
+            <dd className="font-semibold tabular-nums">
+              <span className="text-green-700">{doneCount}</span>
+              <span className="text-slate-400"> / {DESTINATIONS.length} 完了</span>
             </dd>
           </div>
           <div className="flex justify-between">
@@ -177,6 +199,8 @@ function DestinationPicker({
 
       <ul className="mx-5 mb-6 space-y-2">
         {DESTINATIONS.map((d) => {
+          const doneAt = completed.get(d.id);
+          const isDone = doneAt !== undefined;
           const tone =
             d.shift === "早朝"
               ? "bg-amber-100 text-amber-800 ring-amber-200"
@@ -188,27 +212,93 @@ function DestinationPicker({
               <button
                 type="button"
                 onClick={() => onPick(d)}
-                className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3.5 text-left ring-1 ring-slate-200 shadow-sm transition active:scale-[0.99] hover:bg-slate-50"
+                className={[
+                  "flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left shadow-sm transition active:scale-[0.99]",
+                  isDone
+                    ? "bg-green-50 ring-1 ring-green-200 hover:bg-green-100"
+                    : "bg-white ring-1 ring-slate-200 hover:bg-slate-50",
+                ].join(" ")}
               >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold ring-1 ${tone}`}
+                {isDone && (
+                  <span
+                    aria-hidden
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-600 text-white shadow-sm"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-5 w-5"
                     >
-                      {d.shift}
-                    </span>
-                    <span className="truncate text-[16px] font-bold text-slate-900">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </span>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {isDone ? (
+                      <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold ring-1 bg-green-100 text-green-800 ring-green-300">
+                        ✓ 納品済
+                      </span>
+                    ) : (
+                      <span
+                        className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold ring-1 ${tone}`}
+                      >
+                        {d.shift}
+                      </span>
+                    )}
+                    <span
+                      className={[
+                        "truncate text-[16px] font-bold",
+                        isDone ? "text-slate-500" : "text-slate-900",
+                      ].join(" ")}
+                    >
                       {d.name}
                     </span>
                   </div>
-                  <p className="mt-1 truncate text-[13px] text-slate-500">
+                  <p
+                    className={[
+                      "mt-1 truncate text-[13px]",
+                      isDone ? "text-slate-400" : "text-slate-500",
+                    ].join(" ")}
+                  >
                     {d.address}
                   </p>
-                  <p className="mt-1 text-[12px] text-slate-600">
-                    予定 <span className="font-bold tabular-nums text-slate-900">{d.items.length}</span> 個
+                  <p
+                    className={[
+                      "mt-1 text-[12px]",
+                      isDone ? "text-slate-400" : "text-slate-600",
+                    ].join(" ")}
+                  >
+                    {isDone ? (
+                      <>
+                        <span className="font-bold tabular-nums">
+                          {d.items.length}
+                        </span>{" "}
+                        個 ・ {formatTime(doneAt)} 納品
+                      </>
+                    ) : (
+                      <>
+                        予定{" "}
+                        <span className="font-bold tabular-nums text-slate-900">
+                          {d.items.length}
+                        </span>{" "}
+                        個
+                      </>
+                    )}
                   </p>
                 </div>
-                <span className="shrink-0 text-2xl text-slate-300">›</span>
+                <span
+                  className={[
+                    "shrink-0 text-2xl",
+                    isDone ? "text-green-400" : "text-slate-300",
+                  ].join(" ")}
+                >
+                  ›
+                </span>
               </button>
             </li>
           );
@@ -221,9 +311,11 @@ function DestinationPicker({
 function InspectionWorkflow({
   destination,
   onBack,
+  onComplete,
 }: {
   destination: Destination;
   onBack: () => void;
+  onComplete: (id: string) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -559,7 +651,7 @@ function InspectionWorkflow({
     setPhotoUrl(null);
     setMemo("");
     setShowCompletion(false);
-    onBack();
+    onComplete(destination.id);
   };
 
   const handleCompletionDismiss = () => {
