@@ -42,7 +42,6 @@ type Destination = {
   items: ExpectedItem[];
 };
 
-type View = "camera" | "list";
 
 const DESTINATIONS: Destination[] = [
   {
@@ -326,7 +325,6 @@ function InspectionWorkflow({
   const lastRejectRef = useRef<{ text: string; at: number } | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
-  const [view, setView] = useState<View>("camera");
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [records, setRecords] = useState<ScanRecord[]>([]);
@@ -679,52 +677,14 @@ function InspectionWorkflow({
         </div>
       </header>
 
-      <nav className="px-5 pb-3">
-        <div className="grid grid-cols-2 gap-2 rounded-xl bg-white p-1 ring-1 ring-slate-200">
-          <button
-            type="button"
-            onClick={() => setView("camera")}
-            className={[
-              "rounded-lg px-3 py-2 text-sm font-bold transition",
-              view === "camera"
-                ? "bg-blue-600 text-white shadow"
-                : "text-slate-600 hover:bg-slate-100",
-            ].join(" ")}
-          >
-            カメラ
-          </button>
-          <button
-            type="button"
-            onClick={() => setView("list")}
-            className={[
-              "flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition",
-              view === "list"
-                ? "bg-blue-600 text-white shadow"
-                : "text-slate-600 hover:bg-slate-100",
-            ].join(" ")}
-          >
-            予定リスト
-            <span
-              className={[
-                "rounded-md px-1.5 py-0.5 text-[11px] tabular-nums",
-                view === "list"
-                  ? "bg-white/25"
-                  : "bg-blue-100 text-blue-700",
-              ].join(" ")}
-            >
-              {expectedDoneCount}/{totalExpected}
-            </span>
-          </button>
-        </div>
-      </nav>
+      <div className="px-5 pb-3">
+        <p className="text-[12px] text-slate-500">
+          {destination.shift} ・ {destination.address}
+        </p>
+      </div>
 
-      <div
-        className={[
-          "px-5",
-          view === "camera" ? "flex flex-1 flex-col" : "hidden",
-        ].join(" ")}
-      >
-        <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-slate-900 ring-1 ring-slate-300 shadow-sm">
+      <div className="px-5">
+        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-slate-900 ring-1 ring-slate-300 shadow-sm">
           <video
             ref={videoRef}
             className="absolute inset-0 h-full w-full object-cover"
@@ -808,52 +768,29 @@ function InspectionWorkflow({
 
           <div className="pointer-events-none absolute inset-x-6 bottom-16 top-6 rounded-2xl border border-dashed border-white/15" />
         </div>
-
-        <p className="mt-3 text-center text-xs text-slate-500">
-          QR を 1 つずつ枠に映してください。一致音/不一致音で結果が分かります
-        </p>
       </div>
 
-      <div
-        className={[
-          "flex-1 px-5",
-          view === "list" ? "flex flex-col" : "hidden",
-        ].join(" ")}
-      >
-        <section className="rounded-2xl bg-white p-4 ring-1 ring-slate-200 shadow-sm">
-          <dl className="space-y-1.5 text-[15px]">
-            <div className="flex justify-between">
-              <dt className="text-slate-500">納品先</dt>
-              <dd className="font-semibold text-slate-900">{destination.name}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">住所</dt>
-              <dd className="text-right font-semibold text-slate-900">
-                {destination.address}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">便区分</dt>
-              <dd className="font-semibold text-slate-900">{destination.shift}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">予定個数</dt>
-              <dd className="font-semibold text-slate-900 tabular-nums">
-                {totalExpected}
-              </dd>
-            </div>
-          </dl>
-        </section>
-
-        <div className="mt-4 flex items-center justify-between pb-2">
-          <h2 className="text-[15px] font-bold text-slate-900">出庫予定</h2>
+      <div className="mt-4 flex flex-1 flex-col px-5 pb-2 overflow-hidden">
+        <div className="flex items-center justify-between pb-1.5">
+          <h2 className="text-[15px] font-bold text-slate-900">納品予定</h2>
           <span className="text-sm tabular-nums text-slate-600">
             <span className="font-bold text-blue-600">{expectedDoneCount}</span>
             <span className="text-slate-400"> / {totalExpected}</span>
           </span>
         </div>
 
-        <ul className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200 shadow-sm">
+        <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
+          <div
+            className="h-full bg-green-500 transition-all duration-300"
+            style={{
+              width: totalExpected
+                ? `${(expectedDoneCount / totalExpected) * 100}%`
+                : "0%",
+            }}
+          />
+        </div>
+
+        <ul className="flex-shrink overflow-y-auto rounded-xl bg-white ring-1 ring-slate-200 shadow-sm">
           {expectedItems.map((item) => {
             const done = scannedExpected.has(item.code);
             return (
