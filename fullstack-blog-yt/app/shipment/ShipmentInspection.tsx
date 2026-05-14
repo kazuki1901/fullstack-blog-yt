@@ -44,18 +44,38 @@ type LiveBox = {
 const MIN_HITS_TO_CONFIRM = 10;
 const STALE_TENTATIVE_MS = 1500;
 
+type DepotKind = "shipper" | "branch" | "relay";
+
 type Depot = {
   id: string;
   name: string;
+  kind: DepotKind;
   lat: number;
   lng: number;
   radiusM: number;
+  address?: string;
+};
+
+const DEPOT_KIND_LABEL: Record<DepotKind, string> = {
+  shipper: "荷主",
+  branch: "営業所",
+  relay: "中継所",
 };
 
 const DEPOTS: Depot[] = [
   {
+    id: "toho-amagasaki",
+    name: "東邦自動車",
+    kind: "shipper",
+    lat: 34.7188,
+    lng: 135.4286,
+    radiusM: 400,
+    address: "兵庫県尼崎市小中島1-17-15",
+  },
+  {
     id: "osaka",
     name: "大阪営業所",
+    kind: "branch",
     lat: 34.7024,
     lng: 135.4959,
     radiusM: 800,
@@ -63,6 +83,7 @@ const DEPOTS: Depot[] = [
   {
     id: "kyoto-relay",
     name: "京都中継所",
+    kind: "relay",
     lat: 35.0116,
     lng: 135.7681,
     radiusM: 800,
@@ -70,6 +91,7 @@ const DEPOTS: Depot[] = [
   {
     id: "fukui-relay",
     name: "福井中継所",
+    kind: "relay",
     lat: 36.0652,
     lng: 136.2216,
     radiusM: 800,
@@ -77,6 +99,7 @@ const DEPOTS: Depot[] = [
   {
     id: "kanazawa",
     name: "金沢営業所",
+    kind: "branch",
     lat: 36.578,
     lng: 136.6485,
     radiusM: 800,
@@ -683,7 +706,7 @@ export default function ShipmentInspection() {
                   : positionError
                     ? positionError
                     : currentDepot
-                      ? `${currentDepot.depot.name} (±${Math.round(currentDepot.distance)}m)`
+                      ? `[${DEPOT_KIND_LABEL[currentDepot.depot.kind]}] ${currentDepot.depot.name} (±${Math.round(currentDepot.distance)}m)`
                       : position
                         ? `拠点外 ${position.lat.toFixed(4)}, ${position.lng.toFixed(4)}`
                         : ""}
@@ -955,15 +978,29 @@ function HistoryView({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     {h.depot ? (
-                      <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold ring-1 bg-green-100 text-green-800 ring-green-300">
-                        📍 {h.depot.name}
-                      </span>
+                      <>
+                        <span
+                          className={[
+                            "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ring-1",
+                            h.depot.kind === "shipper"
+                              ? "bg-purple-100 text-purple-800 ring-purple-200"
+                              : h.depot.kind === "branch"
+                                ? "bg-blue-100 text-blue-800 ring-blue-200"
+                                : "bg-amber-100 text-amber-800 ring-amber-200",
+                          ].join(" ")}
+                        >
+                          {DEPOT_KIND_LABEL[h.depot.kind]}
+                        </span>
+                        <span className="shrink-0 truncate text-[13px] font-bold text-slate-800">
+                          📍 {h.depot.name}
+                        </span>
+                      </>
                     ) : (
                       <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold ring-1 bg-amber-100 text-amber-800 ring-amber-300">
                         拠点外
                       </span>
                     )}
-                    <span className="text-[15px] font-bold text-slate-900 tabular-nums">
+                    <span className="ml-auto text-[15px] font-bold text-slate-900 tabular-nums">
                       {h.count} 件
                     </span>
                   </div>
@@ -1090,12 +1127,31 @@ function SubmittedModal({
           {position ? (
             <div className="bg-white px-3 py-2.5">
               {depot ? (
-                <p className="text-[15px] font-bold text-green-700">
-                  {depot.name}
-                </p>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={[
+                      "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ring-1",
+                      depot.kind === "shipper"
+                        ? "bg-purple-100 text-purple-800 ring-purple-200"
+                        : depot.kind === "branch"
+                          ? "bg-blue-100 text-blue-800 ring-blue-200"
+                          : "bg-amber-100 text-amber-800 ring-amber-200",
+                    ].join(" ")}
+                  >
+                    {DEPOT_KIND_LABEL[depot.kind]}
+                  </span>
+                  <p className="text-[15px] font-bold text-green-700">
+                    {depot.name}
+                  </p>
+                </div>
               ) : (
                 <p className="text-[14px] font-bold text-amber-700">
                   拠点外（未登録の場所）
+                </p>
+              )}
+              {depot?.address && (
+                <p className="mt-0.5 text-[11px] text-slate-500">
+                  {depot.address}
                 </p>
               )}
               <p className="mt-1 font-mono text-[11px] tabular-nums text-slate-500">
