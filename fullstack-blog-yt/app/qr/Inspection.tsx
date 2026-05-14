@@ -31,19 +31,68 @@ type ExpectedItem = {
   category: "早朝" | "TOP" | "夜便";
 };
 
+type Destination = {
+  id: string;
+  name: string;
+  address: string;
+  shift: "早朝" | "TOP" | "夜便";
+  items: ExpectedItem[];
+};
+
 type View = "camera" | "list";
 
-const EXPECTED_ITEMS: ExpectedItem[] = [
-  { code: "OHK-XYZ-000121", label: "明太子 1kg", category: "早朝" },
-  { code: "OHK-XYZ-000122", label: "明太子 1kg", category: "早朝" },
-  { code: "OHK-XYZ-000123", label: "辛子明太子", category: "TOP" },
-  { code: "OHK-XYZ-000124", label: "明太子 1kg", category: "早朝" },
-  { code: "OHK-XYZ-000125", label: "焼き明太", category: "夜便" },
-  { code: "OHK-XYZ-000126", label: "焼き明太", category: "夜便" },
-  { code: "OHK-XYZ-000127", label: "明太子 1kg", category: "早朝" },
-  { code: "OHK-XYZ-000128", label: "辛子明太子", category: "TOP" },
-  { code: "OHK-XYZ-000129", label: "明太子 1kg", category: "早朝" },
-  { code: "OHK-XYZ-000130", label: "焼き明太", category: "夜便" },
+const DESTINATIONS: Destination[] = [
+  {
+    id: "lawson-kanazawa-st",
+    name: "ローソン 金沢駅前店",
+    address: "金沢市木ノ新保町1-1",
+    shift: "早朝",
+    items: [
+      { code: "OHK-XYZ-000121", label: "明太子 1kg", category: "早朝" },
+      { code: "OHK-XYZ-000122", label: "明太子 1kg", category: "早朝" },
+      { code: "OHK-XYZ-000124", label: "明太子 1kg", category: "早朝" },
+    ],
+  },
+  {
+    id: "7eleven-korinbo",
+    name: "セブンイレブン 香林坊店",
+    address: "金沢市香林坊2-4",
+    shift: "早朝",
+    items: [
+      { code: "OHK-XYZ-000127", label: "明太子 1kg", category: "早朝" },
+      { code: "OHK-XYZ-000129", label: "明太子 1kg", category: "早朝" },
+    ],
+  },
+  {
+    id: "familymart-musashi",
+    name: "ファミリーマート 武蔵店",
+    address: "金沢市武蔵町14",
+    shift: "TOP",
+    items: [
+      { code: "OHK-XYZ-000123", label: "辛子明太子", category: "TOP" },
+      { code: "OHK-XYZ-000128", label: "辛子明太子", category: "TOP" },
+    ],
+  },
+  {
+    id: "aeon-kanazawa",
+    name: "イオン金沢店",
+    address: "金沢市福久町ヌ1-1",
+    shift: "夜便",
+    items: [
+      { code: "OHK-XYZ-000125", label: "焼き明太", category: "夜便" },
+      { code: "OHK-XYZ-000126", label: "焼き明太", category: "夜便" },
+      { code: "OHK-XYZ-000130", label: "焼き明太", category: "夜便" },
+    ],
+  },
+  {
+    id: "sushi-marutake",
+    name: "丸竹寿司",
+    address: "金沢市片町1-7",
+    shift: "夜便",
+    items: [
+      { code: "OHK-XYZ-000131", label: "明太子 業務用", category: "夜便" },
+    ],
+  },
 ];
 
 const REJECT_COOLDOWN_MS = 1200;
@@ -66,6 +115,113 @@ const getSupportedClient = () => typeof window.BarcodeDetector === "function";
 const getSupportedServer = (): boolean | null => null;
 
 export default function Inspection() {
+  const [destination, setDestination] = useState<Destination | null>(null);
+
+  if (destination === null) {
+    return <DestinationPicker onPick={setDestination} />;
+  }
+
+  return (
+    <InspectionWorkflow
+      destination={destination}
+      onBack={() => setDestination(null)}
+    />
+  );
+}
+
+function DestinationPicker({
+  onPick,
+}: {
+  onPick: (d: Destination) => void;
+}) {
+  const totalItems = DESTINATIONS.reduce((sum, d) => sum + d.items.length, 0);
+
+  return (
+    <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-slate-50 text-slate-900">
+      <header className="px-5 pt-6 pb-3">
+        <p className="text-[15px] text-slate-500">出庫検品 / 金沢営業所</p>
+        <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-slate-900">
+          納品先を選択
+        </h1>
+      </header>
+
+      <section className="mx-5 mb-4 rounded-2xl bg-white p-4 ring-1 ring-slate-200 shadow-sm">
+        <dl className="space-y-1.5 text-[15px]">
+          <div className="flex justify-between">
+            <dt className="text-slate-500">納品日</dt>
+            <dd className="font-semibold text-slate-900 tabular-nums">
+              2026/05/14
+            </dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-slate-500">担当 / 車番</dt>
+            <dd className="font-semibold text-slate-900">山田 / #4</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-slate-500">納品先数</dt>
+            <dd className="font-semibold text-slate-900 tabular-nums">
+              {DESTINATIONS.length}
+            </dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-slate-500">合計個数</dt>
+            <dd className="font-semibold text-slate-900 tabular-nums">
+              {totalItems}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <ul className="mx-5 mb-6 space-y-2">
+        {DESTINATIONS.map((d) => {
+          const tone =
+            d.shift === "早朝"
+              ? "bg-amber-100 text-amber-800 ring-amber-200"
+              : d.shift === "TOP"
+                ? "bg-blue-100 text-blue-800 ring-blue-200"
+                : "bg-indigo-100 text-indigo-800 ring-indigo-200";
+          return (
+            <li key={d.id}>
+              <button
+                type="button"
+                onClick={() => onPick(d)}
+                className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3.5 text-left ring-1 ring-slate-200 shadow-sm transition active:scale-[0.99] hover:bg-slate-50"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold ring-1 ${tone}`}
+                    >
+                      {d.shift}
+                    </span>
+                    <span className="truncate text-[16px] font-bold text-slate-900">
+                      {d.name}
+                    </span>
+                  </div>
+                  <p className="mt-1 truncate text-[13px] text-slate-500">
+                    {d.address}
+                  </p>
+                  <p className="mt-1 text-[12px] text-slate-600">
+                    予定 <span className="font-bold tabular-nums text-slate-900">{d.items.length}</span> 個
+                  </p>
+                </div>
+                <span className="shrink-0 text-2xl text-slate-300">›</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function InspectionWorkflow({
+  destination,
+  onBack,
+}: {
+  destination: Destination;
+  onBack: () => void;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const detectorRef = useRef<BarcodeDetectorInstance | null>(null);
@@ -93,9 +249,10 @@ export default function Inspection() {
     getSupportedServer,
   );
 
+  const expectedItems = destination.items;
   const expectedSet = useMemo(
-    () => new Set(EXPECTED_ITEMS.map((e) => e.code)),
-    [],
+    () => new Set(expectedItems.map((e) => e.code)),
+    [expectedItems],
   );
 
   const scannedExpected = useMemo(
@@ -293,38 +450,56 @@ export default function Inspection() {
   };
 
   const handleAbort = () => {
-    if (scanning) stop();
+    if (
+      records.length > 0 &&
+      !confirm("スキャン内容を破棄して納品先一覧に戻りますか？")
+    ) {
+      return;
+    }
+    stop();
     seenRef.current.clear();
     lastRejectRef.current = null;
     setRecords([]);
-    setLiveBoxes([]);
+    onBack();
   };
 
   const handleSubmit = () => {
     const list = records.filter((r) => r.match === "expected");
     if (list.length === 0) return;
     alert(
-      `${list.length} 件を出庫します（デモ）\n\n${list
+      `${destination.name} へ ${list.length} 件を出庫します（デモ）\n\n${list
         .map((r) => r.text)
         .join("\n")}`,
     );
+    stop();
     seenRef.current.clear();
     lastRejectRef.current = null;
     setRecords([]);
+    onBack();
   };
 
-  const totalExpected = EXPECTED_ITEMS.length;
+  const totalExpected = expectedItems.length;
   const allDone = expectedDoneCount === totalExpected;
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-slate-50 text-slate-900">
-      <header className="px-5 pt-6 pb-2">
-        <p className="text-[15px] text-slate-500">
-          出庫検品 / 金沢営業所(単発)
-        </p>
-        <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-slate-900">
-          山田 / #4 車
-        </h1>
+      <header className="flex items-center gap-3 px-5 pt-6 pb-2">
+        <button
+          type="button"
+          onClick={handleAbort}
+          aria-label="納品先一覧に戻る"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-xl text-slate-700 ring-1 ring-slate-200 active:bg-slate-100"
+        >
+          ←
+        </button>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[12px] text-slate-500">
+            出庫検品 / 金沢営業所(単発)
+          </p>
+          <h1 className="truncate text-[18px] font-bold tracking-tight text-slate-900">
+            {destination.name}
+          </h1>
+        </div>
       </header>
 
       <nav className="px-5 pb-3">
@@ -460,18 +635,18 @@ export default function Inspection() {
         <section className="rounded-2xl bg-white p-4 ring-1 ring-slate-200 shadow-sm">
           <dl className="space-y-1.5 text-[15px]">
             <div className="flex justify-between">
-              <dt className="text-slate-500">納品日</dt>
-              <dd className="font-semibold text-slate-900 tabular-nums">
-                2026/05/14
+              <dt className="text-slate-500">納品先</dt>
+              <dd className="font-semibold text-slate-900">{destination.name}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-slate-500">住所</dt>
+              <dd className="text-right font-semibold text-slate-900">
+                {destination.address}
               </dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-slate-500">便区分</dt>
-              <dd className="font-semibold text-slate-900">早朝 / TOP / 夜便</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-slate-500">担当 / 車番</dt>
-              <dd className="font-semibold text-slate-900">山田 / #4</dd>
+              <dd className="font-semibold text-slate-900">{destination.shift}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-slate-500">予定個数</dt>
@@ -491,7 +666,7 @@ export default function Inspection() {
         </div>
 
         <ul className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200 shadow-sm">
-          {EXPECTED_ITEMS.map((item) => {
+          {expectedItems.map((item) => {
             const done = scannedExpected.has(item.code);
             return (
               <li
@@ -608,7 +783,7 @@ export default function Inspection() {
           onClick={handleAbort}
           className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100"
         >
-          中断
+          納品先へ戻る
         </button>
         {scanning ? (
           <button
