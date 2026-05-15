@@ -322,7 +322,7 @@ function InspectionWorkflow({
   const rafRef = useRef<number | null>(null);
   const runningRef = useRef(false);
   const seenRef = useRef<Set<string>>(new Set());
-  const lastRejectRef = useRef<{ text: string; at: number } | null>(null);
+  const rejectMapRef = useRef<Map<string, number>>(new Map());
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   const [scanning, setScanning] = useState(false);
@@ -535,13 +535,9 @@ function InspectionWorkflow({
                 navigator.vibrate?.(80);
                 setFlash({ text, tone: "ok", at: now });
               } else {
-                const last = lastRejectRef.current;
-                if (
-                  !last ||
-                  last.text !== text ||
-                  now - last.at > REJECT_COOLDOWN_MS
-                ) {
-                  lastRejectRef.current = { text, at: now };
+                const lastAt = rejectMapRef.current.get(text);
+                if (!lastAt || now - lastAt > REJECT_COOLDOWN_MS) {
+                  rejectMapRef.current.set(text, now);
                   newRecords.push({
                     text,
                     scannedAt: now,
@@ -596,7 +592,7 @@ function InspectionWorkflow({
     }
     stop();
     seenRef.current.clear();
-    lastRejectRef.current = null;
+    rejectMapRef.current.clear();
     setRecords([]);
     onBack();
   };
@@ -611,7 +607,7 @@ function InspectionWorkflow({
     );
     stop();
     seenRef.current.clear();
-    lastRejectRef.current = null;
+    rejectMapRef.current.clear();
     setRecords([]);
     onBack();
   };
@@ -644,7 +640,7 @@ function InspectionWorkflow({
 
     if (photoUrl) URL.revokeObjectURL(photoUrl);
     seenRef.current.clear();
-    lastRejectRef.current = null;
+    rejectMapRef.current.clear();
     setRecords([]);
     setPhotoUrl(null);
     setMemo("");
