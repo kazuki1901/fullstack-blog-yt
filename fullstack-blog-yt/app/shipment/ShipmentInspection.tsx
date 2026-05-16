@@ -21,9 +21,58 @@ type CodeState = {
   confirmedAt: number | null;
 };
 
+type DimsInput = { l: string; w: string; h: string };
+
+type SizeCode =
+  | "60"
+  | "80"
+  | "100"
+  | "120"
+  | "140"
+  | "160"
+  | "180"
+  | "200"
+  | "260"
+  | "規格外";
+
+type ParsedDims = {
+  l: number;
+  w: number;
+  h: number;
+  totalCm: number;
+  sizeCode: SizeCode;
+};
+
+function calcSizeCode(totalCm: number): SizeCode {
+  if (totalCm <= 60) return "60";
+  if (totalCm <= 80) return "80";
+  if (totalCm <= 100) return "100";
+  if (totalCm <= 120) return "120";
+  if (totalCm <= 140) return "140";
+  if (totalCm <= 160) return "160";
+  if (totalCm <= 180) return "180";
+  if (totalCm <= 200) return "200";
+  if (totalCm <= 260) return "260";
+  return "規格外";
+}
+
+function parseDims(d?: DimsInput | null): ParsedDims | null {
+  if (!d) return null;
+  const l = Number.parseInt(d.l, 10);
+  const w = Number.parseInt(d.w, 10);
+  const h = Number.parseInt(d.h, 10);
+  if (!Number.isFinite(l) || !Number.isFinite(w) || !Number.isFinite(h)) {
+    return null;
+  }
+  if (l <= 0 || w <= 0 || h <= 0) return null;
+  const totalCm = l + w + h;
+  return { l, w, h, totalCm, sizeCode: calcSizeCode(totalCm) };
+}
+
 type ConfirmedItem = {
   text: string;
   confirmedAt: number;
+  dims?: DimsInput;
 };
 
 type TentativeItem = {
@@ -191,7 +240,7 @@ export default function ShipmentInspection() {
   const [positionLoading, setPositionLoading] = useState(false);
   const [submitted, setSubmitted] = useState<{
     count: number;
-    codes: string[];
+    items: ConfirmedItem[];
     at: number;
     position: {
       lat: number;
@@ -207,7 +256,7 @@ export default function ShipmentInspection() {
       id: string;
       at: number;
       count: number;
-      codes: string[];
+      items: ConfirmedItem[];
       position: {
         lat: number;
         lng: number;
@@ -217,6 +266,8 @@ export default function ShipmentInspection() {
       depot: Depot | null;
     }[]
   >([]);
+  const [expandedText, setExpandedText] = useState<string | null>(null);
+  const [lastDims, setLastDims] = useState<DimsInput | null>(null);
 
   const supported = useSyncExternalStore(
     subscribeNoop,
@@ -487,7 +538,20 @@ export default function ShipmentInspection() {
     setConfirmed([]);
     setTentatives([]);
     setLiveBoxes([]);
+    setExpandedText(null);
   };
+
+  const updateItemDims = useCallback(
+    (text: string, next: DimsInput | undefined) => {
+      setConfirmed((prev) =>
+        prev.map((c) => (c.text === text ? { ...c, dims: next } : c)),
+      );
+      if (next && parseDims(next)) {
+        setLastDims(next);
+      }
+    },
+    [],
+  );
 
   const currentDepot = useMemo(
     () =>
@@ -505,13 +569,13 @@ export default function ShipmentInspection() {
 
   const handleSubmit = () => {
     if (confirmed.length === 0) return;
-    const codes = confirmed.map((c) => c.text);
+    const items = confirmed;
     if (scanning) stop();
     const now = Date.now();
     const depot = currentDepot?.depot ?? null;
     setSubmitted({
       count: confirmed.length,
-      codes,
+      items,
       at: now,
       position,
       positionError,
@@ -522,7 +586,7 @@ export default function ShipmentInspection() {
         id: `sub-${now}`,
         at: now,
         count: confirmed.length,
-        codes,
+        items,
         position,
         depot,
       },
@@ -532,6 +596,7 @@ export default function ShipmentInspection() {
     setConfirmed([]);
     setTentatives([]);
     setLiveBoxes([]);
+    setExpandedText(null);
     setPosition(null);
     setPositionError(null);
   };
@@ -707,6 +772,74 @@ export default function ShipmentInspection() {
         <p className="mt-3 text-center text-xs text-slate-500">
           複数の QR を同時に映してください（{MIN_HITS_TO_CONFIRM} 回連続検出で確定）
         </p>
+
+        {confirmed.length > 0 && (
+          <section className="mt-4 pb-2">
+            <div className="mb-2 flex items-baseline justify-between px-1">
+              <h2 className="text-[13px] font-bold text-slate-600">
+                確定済み {confirmed.length} 件
+              </h2>
+              <p className="text-[11px] text-slate-500 tabular-nums">
+                採寸{" "}
+                {confirmed.filter((c) => parseDims(c.dims)).length}/
+                {confirmed.length}
+              </p>
+            </div>
+            <ul className="space-y-1.5">
+              {confirmed.map((item) => {
+                const expanded = expandedText === item.text;
+                const parsed = parseDims(item.dims);
+                return (
+                  <li key={item.text}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedText((prev) =>
+                          prev === item.text ? null : item.text,
+                        )
+                      }
+                      className="flex w-full items-center gap-2 rounded-xl bg-white px-3 py-2 text-left ring-1 ring-slate-200 shadow-sm transition active:bg-slate-50"
+                    >
+                      <span className="text-green-600">✓</span>
+                      <span className="flex-1 truncate font-mono text-[12px] text-slate-700">
+                        {item.text}
+                      </span>
+                      {parsed ? (
+                        <span className="shrink-0 rounded-md bg-blue-100 px-1.5 py-0.5 text-[11px] font-bold text-blue-800 ring-1 ring-blue-200 tabular-nums">
+                          📏 {parsed.sizeCode}サイズ
+                        </span>
+                      ) : item.dims ? (
+                        <span className="shrink-0 rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-bold text-amber-700 ring-1 ring-amber-200">
+                          📏 入力中
+                        </span>
+                      ) : (
+                        <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-500 ring-1 ring-slate-200">
+                          📏 未入力
+                        </span>
+                      )}
+                      <span
+                        className={[
+                          "shrink-0 text-slate-400 transition-transform",
+                          expanded ? "rotate-90" : "",
+                        ].join(" ")}
+                        aria-hidden
+                      >
+                        ›
+                      </span>
+                    </button>
+                    {expanded && (
+                      <DimsEditor
+                        value={item.dims}
+                        lastDims={lastDims}
+                        onChange={(next) => updateItemDims(item.text, next)}
+                      />
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
       </div>
 
       <div
@@ -762,7 +895,7 @@ export default function ShipmentInspection() {
       {submitted && (
         <SubmittedModal
           count={submitted.count}
-          codes={submitted.codes}
+          items={submitted.items}
           at={submitted.at}
           position={submitted.position}
           positionError={submitted.positionError}
@@ -774,6 +907,113 @@ export default function ShipmentInspection() {
   );
 }
 
+function DimsEditor({
+  value,
+  lastDims,
+  onChange,
+}: {
+  value?: DimsInput;
+  lastDims: DimsInput | null;
+  onChange: (next: DimsInput | undefined) => void;
+}) {
+  const v = value ?? { l: "", w: "", h: "" };
+  const parsed = parseDims(value);
+  const update = (k: keyof DimsInput, raw: string) => {
+    const cleaned = raw.replace(/[^0-9]/g, "").slice(0, 3);
+    const next: DimsInput = { ...v, [k]: cleaned };
+    if (!next.l && !next.w && !next.h) {
+      onChange(undefined);
+    } else {
+      onChange(next);
+    }
+  };
+  const canCopyLast = lastDims !== null && parseDims(lastDims) !== null;
+  return (
+    <div className="mt-1 rounded-xl bg-white px-3 py-3 ring-1 ring-slate-200">
+      <div className="grid grid-cols-3 gap-2">
+        <DimsField label="縦" value={v.l} onChange={(x) => update("l", x)} />
+        <DimsField label="横" value={v.w} onChange={(x) => update("w", x)} />
+        <DimsField label="高さ" value={v.h} onChange={(x) => update("h", x)} />
+      </div>
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <p className="text-[12px] text-slate-600">
+          {parsed ? (
+            <>
+              3辺合計{" "}
+              <span className="font-bold tabular-nums text-slate-900">
+                {parsed.totalCm}cm
+              </span>{" "}
+              →{" "}
+              <span
+                className={[
+                  "font-bold tabular-nums",
+                  parsed.sizeCode === "規格外"
+                    ? "text-red-700"
+                    : "text-blue-700",
+                ].join(" ")}
+              >
+                {parsed.sizeCode}サイズ
+              </span>
+            </>
+          ) : (
+            <span className="text-slate-400">3辺を入力してください</span>
+          )}
+        </p>
+        <div className="flex shrink-0 gap-1.5">
+          {canCopyLast && (
+            <button
+              type="button"
+              onClick={() => onChange(lastDims!)}
+              className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-700 transition active:bg-slate-200"
+            >
+              前と同じ
+            </button>
+          )}
+          {value && (
+            <button
+              type="button"
+              onClick={() => onChange(undefined)}
+              className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-700 transition active:bg-slate-200"
+            >
+              クリア
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DimsField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="block px-0.5 text-[11px] font-bold text-slate-500">
+        {label}
+      </span>
+      <div className="mt-0.5 flex items-baseline rounded-lg bg-slate-50 px-2 py-1.5 ring-1 ring-slate-200 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500">
+        <input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="0"
+          className="w-full bg-transparent text-right text-[16px] font-bold tabular-nums text-slate-900 outline-none placeholder:text-slate-300"
+        />
+        <span className="ml-1 text-[11px] text-slate-500">cm</span>
+      </div>
+    </label>
+  );
+}
+
 function HistoryView({
   history,
 }: {
@@ -781,7 +1021,7 @@ function HistoryView({
     id: string;
     at: number;
     count: number;
-    codes: string[];
+    items: ConfirmedItem[];
     position: {
       lat: number;
       lng: number;
@@ -914,17 +1154,30 @@ function HistoryView({
                     </div>
                   )}
                   <ul className="max-h-56 overflow-y-auto">
-                    {h.codes.map((c) => (
-                      <li
-                        key={c}
-                        className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-0"
-                      >
-                        <span className="text-green-600">✓</span>
-                        <span className="flex-1 break-all font-mono text-[12px] text-slate-700">
-                          {c}
-                        </span>
-                      </li>
-                    ))}
+                    {h.items.map((item) => {
+                      const parsed = parseDims(item.dims);
+                      return (
+                        <li
+                          key={item.text}
+                          className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-0"
+                        >
+                          <span className="shrink-0 text-green-600">✓</span>
+                          <span className="flex-1 break-all font-mono text-[12px] text-slate-700">
+                            {item.text}
+                          </span>
+                          {parsed ? (
+                            <span className="shrink-0 rounded-md bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800 ring-1 ring-blue-200 tabular-nums">
+                              {parsed.sizeCode} ({parsed.l}×{parsed.w}×
+                              {parsed.h})
+                            </span>
+                          ) : (
+                            <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
+                              採寸なし
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}
@@ -938,7 +1191,7 @@ function HistoryView({
 
 function SubmittedModal({
   count,
-  codes,
+  items,
   at,
   position,
   positionError,
@@ -946,7 +1199,7 @@ function SubmittedModal({
   onDismiss,
 }: {
   count: number;
-  codes: string[];
+  items: ConfirmedItem[];
   at: number;
   position: {
     lat: number;
@@ -958,6 +1211,7 @@ function SubmittedModal({
   depot: Depot | null;
   onDismiss: () => void;
 }) {
+  const measuredCount = items.filter((i) => parseDims(i.dims)).length;
   const time = formatTime(at);
   const mapUrl = position
     ? `https://www.google.com/maps?q=${position.lat},${position.lng}`
@@ -1003,6 +1257,10 @@ function SubmittedModal({
             <dt className="text-slate-500">担当 / 車番</dt>
             <dd className="text-right font-bold text-slate-900">
               山田 / #4
+            </dd>
+            <dt className="text-slate-500">採寸入力</dt>
+            <dd className="text-right font-bold tabular-nums text-slate-900">
+              {measuredCount}/{count} 件
             </dd>
           </dl>
         </div>
@@ -1062,23 +1320,35 @@ function SubmittedModal({
           )}
         </div>
 
-        {codes.length > 0 && (
+        {items.length > 0 && (
           <div className="mx-5 mb-4 overflow-hidden rounded-xl ring-1 ring-slate-200">
             <div className="bg-slate-100 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
               送信したコード
             </div>
-            <ul className="max-h-40 overflow-y-auto bg-white">
-              {codes.map((c) => (
-                <li
-                  key={c}
-                  className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-0"
-                >
-                  <span className="text-green-600">✓</span>
-                  <span className="flex-1 break-all font-mono text-[12px] text-slate-700">
-                    {c}
-                  </span>
-                </li>
-              ))}
+            <ul className="max-h-48 overflow-y-auto bg-white">
+              {items.map((item) => {
+                const parsed = parseDims(item.dims);
+                return (
+                  <li
+                    key={item.text}
+                    className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-0"
+                  >
+                    <span className="shrink-0 text-green-600">✓</span>
+                    <span className="flex-1 break-all font-mono text-[12px] text-slate-700">
+                      {item.text}
+                    </span>
+                    {parsed ? (
+                      <span className="shrink-0 rounded-md bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800 ring-1 ring-blue-200 tabular-nums">
+                        {parsed.sizeCode} ({parsed.l}×{parsed.w}×{parsed.h})
+                      </span>
+                    ) : (
+                      <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
+                        採寸なし
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
