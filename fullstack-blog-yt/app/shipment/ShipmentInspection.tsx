@@ -69,6 +69,47 @@ function parseDims(d?: DimsInput | null): ParsedDims | null {
   return { l, w, h, totalCm, sizeCode: calcSizeCode(totalCm) };
 }
 
+// 才数: 1才 = 30.3cm立方 ≈ 27,818cm³（実務慣行）
+const SAI_VOLUME_CM3 = 27818;
+// 容積重量: cm³ ÷ 6000 で kg 換算（国内陸送の一般値、契約により 5000〜8000）
+const VOLUMETRIC_WEIGHT_DIVISOR = 6000;
+
+type Metrics = {
+  volumeCm3: number;
+  volumeM3: number;
+  sai: number;
+  volumetricWeightKg: number;
+};
+
+function calcMetrics(p: ParsedDims): Metrics {
+  const volumeCm3 = p.l * p.w * p.h;
+  return {
+    volumeCm3,
+    volumeM3: volumeCm3 / 1_000_000,
+    sai: volumeCm3 / SAI_VOLUME_CM3,
+    volumetricWeightKg: volumeCm3 / VOLUMETRIC_WEIGHT_DIVISOR,
+  };
+}
+
+function sumMetrics(items: ConfirmedItem[]): Metrics {
+  const acc: Metrics = {
+    volumeCm3: 0,
+    volumeM3: 0,
+    sai: 0,
+    volumetricWeightKg: 0,
+  };
+  for (const item of items) {
+    const p = parseDims(item.dims);
+    if (!p) continue;
+    const m = calcMetrics(p);
+    acc.volumeCm3 += m.volumeCm3;
+    acc.volumeM3 += m.volumeM3;
+    acc.sai += m.sai;
+    acc.volumetricWeightKg += m.volumetricWeightKg;
+  }
+  return acc;
+}
+
 type ConfirmedItem = {
   text: string;
   confirmedAt: number;
@@ -918,6 +959,7 @@ function DimsEditor({
 }) {
   const v = value ?? { l: "", w: "", h: "" };
   const parsed = parseDims(value);
+  const metrics = parsed ? calcMetrics(parsed) : null;
   const update = (k: keyof DimsInput, raw: string) => {
     const cleaned = raw.replace(/[^0-9]/g, "").slice(0, 3);
     const next: DimsInput = { ...v, [k]: cleaned };
@@ -980,6 +1022,23 @@ function DimsEditor({
           )}
         </div>
       </div>
+      {metrics && (
+        <p className="mt-1.5 border-t border-slate-100 pt-1.5 text-[11px] text-slate-600 tabular-nums">
+          容積{" "}
+          <span className="font-bold text-slate-900">
+            {metrics.volumeM3.toFixed(3)}
+          </span>
+          m³ ・ 才数{" "}
+          <span className="font-bold text-slate-900">
+            {metrics.sai.toFixed(2)}
+          </span>
+          才 ・ 容積重量{" "}
+          <span className="font-bold text-slate-900">
+            {metrics.volumetricWeightKg.toFixed(1)}
+          </span>
+          kg
+        </p>
+      )}
     </div>
   );
 }
@@ -1144,43 +1203,65 @@ function HistoryView({
                   ›
                 </span>
               </button>
-              {expanded && (
-                <div className="mt-1 overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
-                  {h.position && (
-                    <div className="border-b border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
-                      位置: {h.position.lat.toFixed(6)},{" "}
-                      {h.position.lng.toFixed(6)} (±
-                      {Math.round(h.position.accuracy)}m)
-                    </div>
-                  )}
-                  <ul className="max-h-56 overflow-y-auto">
-                    {h.items.map((item) => {
-                      const parsed = parseDims(item.dims);
-                      return (
-                        <li
-                          key={item.text}
-                          className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-0"
-                        >
-                          <span className="shrink-0 text-green-600">✓</span>
-                          <span className="flex-1 break-all font-mono text-[12px] text-slate-700">
-                            {item.text}
-                          </span>
-                          {parsed ? (
-                            <span className="shrink-0 rounded-md bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800 ring-1 ring-blue-200 tabular-nums">
-                              {parsed.sizeCode} ({parsed.l}×{parsed.w}×
-                              {parsed.h})
-                            </span>
-                          ) : (
-                            <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
-                              採寸なし
-                            </span>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
+              {expanded && (() => {
+                const measured = h.items.filter((i) => parseDims(i.dims))
+                  .length;
+                const hSums = sumMetrics(h.items);
+                return (
+                  <div className="mt-1 overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
+                    {h.position && (
+                      <div className="border-b border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+                        位置: {h.position.lat.toFixed(6)},{" "}
+                        {h.position.lng.toFixed(6)} (±
+                        {Math.round(h.position.accuracy)}m)
+                      </div>
+                    )}
+                    {measured > 0 && (
+                      <div className="border-b border-slate-100 bg-blue-50/60 px-3 py-2 text-[11px] tabular-nums text-slate-700">
+                        採寸 {measured}/{h.items.length} 件 ・{" "}
+                        <span className="font-bold">{hSums.sai.toFixed(2)}才</span>{" "}
+                        ・ {hSums.volumeM3.toFixed(3)}m³ ・{" "}
+                        {hSums.volumetricWeightKg.toFixed(1)}kg
+                      </div>
+                    )}
+                    <ul className="max-h-56 overflow-y-auto">
+                      {h.items.map((item) => {
+                        const parsed = parseDims(item.dims);
+                        const m = parsed ? calcMetrics(parsed) : null;
+                        return (
+                          <li
+                            key={item.text}
+                            className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-0"
+                          >
+                            <span className="shrink-0 text-green-600">✓</span>
+                            <div className="min-w-0 flex-1">
+                              <p className="break-all font-mono text-[12px] text-slate-700">
+                                {item.text}
+                              </p>
+                              {parsed && m && (
+                                <p className="mt-0.5 text-[10px] text-slate-500 tabular-nums">
+                                  {parsed.l}×{parsed.w}×{parsed.h}cm ・{" "}
+                                  {m.sai.toFixed(2)}才 ・{" "}
+                                  {m.volumetricWeightKg.toFixed(1)}kg
+                                </p>
+                              )}
+                            </div>
+                            {parsed ? (
+                              <span className="shrink-0 rounded-md bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800 ring-1 ring-blue-200 tabular-nums">
+                                {parsed.sizeCode}サイズ
+                              </span>
+                            ) : (
+                              <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
+                                採寸なし
+                              </span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                );
+              })()}
             </li>
           );
         })}
@@ -1212,6 +1293,7 @@ function SubmittedModal({
   onDismiss: () => void;
 }) {
   const measuredCount = items.filter((i) => parseDims(i.dims)).length;
+  const sums = sumMetrics(items);
   const time = formatTime(at);
   const mapUrl = position
     ? `https://www.google.com/maps?q=${position.lat},${position.lng}`
@@ -1262,6 +1344,22 @@ function SubmittedModal({
             <dd className="text-right font-bold tabular-nums text-slate-900">
               {measuredCount}/{count} 件
             </dd>
+            {measuredCount > 0 && (
+              <>
+                <dt className="text-slate-500">合計才数</dt>
+                <dd className="text-right font-bold tabular-nums text-slate-900">
+                  {sums.sai.toFixed(2)} 才
+                </dd>
+                <dt className="text-slate-500">合計容積</dt>
+                <dd className="text-right font-bold tabular-nums text-slate-900">
+                  {sums.volumeM3.toFixed(3)} m³
+                </dd>
+                <dt className="text-slate-500">合計容積重量</dt>
+                <dd className="text-right font-bold tabular-nums text-slate-900">
+                  {sums.volumetricWeightKg.toFixed(1)} kg
+                </dd>
+              </>
+            )}
           </dl>
         </div>
 
@@ -1328,18 +1426,26 @@ function SubmittedModal({
             <ul className="max-h-48 overflow-y-auto bg-white">
               {items.map((item) => {
                 const parsed = parseDims(item.dims);
+                const m = parsed ? calcMetrics(parsed) : null;
                 return (
                   <li
                     key={item.text}
                     className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-0"
                   >
                     <span className="shrink-0 text-green-600">✓</span>
-                    <span className="flex-1 break-all font-mono text-[12px] text-slate-700">
-                      {item.text}
-                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="break-all font-mono text-[12px] text-slate-700">
+                        {item.text}
+                      </p>
+                      {parsed && m && (
+                        <p className="mt-0.5 text-[10px] text-slate-500 tabular-nums">
+                          {parsed.l}×{parsed.w}×{parsed.h}cm ・ {m.sai.toFixed(2)}才 ・ {m.volumetricWeightKg.toFixed(1)}kg
+                        </p>
+                      )}
+                    </div>
                     {parsed ? (
                       <span className="shrink-0 rounded-md bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800 ring-1 ring-blue-200 tabular-nums">
-                        {parsed.sizeCode} ({parsed.l}×{parsed.w}×{parsed.h})
+                        {parsed.sizeCode}サイズ
                       </span>
                     ) : (
                       <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
