@@ -52,3 +52,6 @@ next-env.d.ts
 .vercel
 
 certificates
+
+# 本番デプロイ不要のローカル作業ファイル(提案資料・モックアップ・PPTXビルドツール)
+/_local/
