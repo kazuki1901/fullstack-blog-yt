@@ -35,6 +35,12 @@ export default async function Home() {
         >
           出庫検品スキャン
         </Link>
+        <Link
+          href={"/measure"}
+          className="md:w-1/6 sm:w-2/4 text-center rounded-md p-2 bg-blue-600 font-semibold text-white"
+        >
+          AR 3辺計測 (β)
+        </Link>
       </div>
 
       <div className="w-full flex flex-col justify-center items-center">
